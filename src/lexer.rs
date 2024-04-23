@@ -61,7 +61,6 @@ impl Lexer {
                                 tokens.push(Token::Identifier(keyword));
                             }
                         }
-                        break;
                     }
                 }
             }
