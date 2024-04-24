@@ -41,10 +41,7 @@ impl Parser {
                 let expr = Self::parse_expression(iter)?;
                 Ok(Statement::Return(expr))
             },
-            a@_ => {
-                eprintln!("{:?}", a);
-                Err("Expected return")
-            },
+            _ => Err("Expected return"),
         }
     }
 
