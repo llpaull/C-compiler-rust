@@ -3,6 +3,7 @@ use std::env;
 use std::path::Path;
 mod lexer;
 mod parser;
+mod assembler;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -19,7 +20,18 @@ fn main() {
 
     if let Ok(contents) = fs::read_to_string(filename) {
         let tokens = lexer::Lexer::lex(&contents);
-        parser::Parser::parse(tokens);
+        let ast = match parser::Parser::parse(tokens) {
+            Ok(ast) => ast,
+            Err(e) => {
+                eprintln!("Error parsing: {}", e);
+                return;
+            },
+        };
+        assembler::Assembler::assemble(&ast);
+        // turn assembly into file
+        // compile assembly
+        // run compiled assembly
+        // remove compiled assembly
     }
     else {
         eprintln!("Error reading file");
