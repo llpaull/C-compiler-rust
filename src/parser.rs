@@ -3,73 +3,82 @@ use crate::lexer::Token;
 pub struct Parser{}
 
 impl Parser {
-    pub fn parse(tokens: Vec<Token>) -> Result<ASTNode, &'static str> {
+    pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
         let mut iter = tokens.iter();
-        let ret = match iter.next() {
-            Some(token) => match token {
-                Token::Keyword(kw) if kw == "int" => {
-                    let name = match iter.next() {
-                        Some(Token::Identifier(name)) => name,
-                        _ => return Err("Expected identifier"),
-                    };
-                    let _ = match iter.next() {
-                        Some(Token::LParen) => (),
-                        _ => return Err("Expected ("),
-                    };
-                    let _ = match iter.next() {
-                        Some(Token::RParen) => (),
-                        _ => return Err("Expected )"),
-                    };
-                    let _ = match iter.next() {
-                        Some(Token::LBrace) => (),
-                        _ => return Err("Expected {"),
-                    };
-
-                    let body = Self::parse_statement(&mut iter)?;
-                    ASTNode::Program(Function{name: name.to_string(), body})
-                },
-                _ => return Err("Expected int"),
-            }
-            _ => return Err("No tokens"),
-        };
-        Ok(ret)
+        match iter.next() {
+            Some(token) => {
+                match token {
+                    Token::Keyword(kw) if kw == "int" => {
+                        let name = match iter.next() {
+                            Some(Token::Identifier(name)) => name,
+                            _ => return Err("Expected function name"),
+                        };
+                        match iter.next() {
+                            Some(Token::LParen) => {},
+                            _ => return Err("Expected left parenthesis"),
+                        }
+                        match iter.next() {
+                            Some(Token::RParen) => {},
+                            _ => return Err("Expected right parenthesis"),
+                        }
+                        match iter.next() {
+                            Some(Token::LBrace) => {},
+                            _ => return Err("Expected left brace"),
+                        }
+                        let mut statements: Vec<Statement> = Vec::new();
+                        let statement = Self::parse_statement(&mut iter)?;
+                        statements.push(statement);
+                        match iter.next() {
+                            Some(Token::RBrace) => {},
+                            _ => return Err("Expected right brace"),
+                        }
+                        let mut funcs: Vec<FunDecl> = Vec::new();
+                        let func = FunDecl {name: name.to_string(), body: statements};
+                        funcs.push(func);
+                        Ok(Program {funcs})
+                    },
+                    _ => return Err("Expected int"),
+                }
+            },
+            None => return Err("No tokens found"),
+        }
     }
 
     fn parse_statement(iter: &mut std::slice::Iter<Token>) -> Result<Statement, &'static str> {
         match iter.next() {
             Some(Token::Keyword(kw)) if kw == "return" => {
-                let expr = Self::parse_expression(iter)?;
-                Ok(Statement::Return(expr))
+                let exp = Self::parse_expression(iter)?;
+                match iter.next() {
+                    Some(Token::Semicolon) => Ok(Statement::Return(exp)),
+                    _ => Err("expected semicolon at end of statement"),
+                }
             },
-            _ => Err("Expected return"),
+            _ => Err("Expected return statement"),
         }
     }
 
-    fn parse_expression(iter: &mut std::slice::Iter<Token>) -> Result<Expression, &'static str> {
+    fn parse_expression(iter: &mut std::slice::Iter<Token>) -> Result<Exp, &'static str> {
         match iter.next() {
-            Some(Token::Integer(i)) => Ok(Expression::Integer(*i)),
-            _ => Err("Expected integer"),
+            Some(Token::Integer(n)) => Ok(Exp::Integer(*n)),
+            _ => Err("Expected return statement to return an int"),
         }
     }
 }
 
 #[derive(Debug)]
-pub enum ASTNode {
-    Program(Function)
-}
+pub struct Program {funcs: Vec<FunDecl>}
+impl Program {}
 
 #[derive(Debug)]
-pub struct Function {
-    pub name: String,
-    pub body: Statement,
-}
+pub struct FunDecl {name: String, body: Vec<Statement>}
+impl FunDecl {}
 
 #[derive(Debug)]
 pub enum Statement {
-    Return(Expression)
+    Return(Exp),
 }
 
 #[derive(Debug)]
-pub enum Expression {
-    Integer(i64)
+pub enum Exp{
+    Integer(i64),
 }

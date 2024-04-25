@@ -20,13 +20,8 @@ fn main() {
 
     if let Ok(contents) = fs::read_to_string(filename) {
         let tokens = lexer::Lexer::lex(&contents);
-        let ast = match parser::Parser::parse(tokens) {
-            Ok(ast) => ast,
-            Err(e) => {
-                eprintln!("Error parsing: {}", e);
-                return;
-            },
-        };
+        let ast = parser::Parser::parse(tokens).expect("error parsing tokens, invalid grammar");
+        println!("{:?}", ast);
         assembler::Assembler::assemble(&ast);
         // turn assembly into file
         // compile assembly
