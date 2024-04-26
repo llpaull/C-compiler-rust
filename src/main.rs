@@ -28,9 +28,9 @@ fn main() {
     let name = name.to_str().unwrap_or("");
 
     if let Ok(contents) = fs::read_to_string(filename) {
-        let tokens = lexer::Lexer::lex(&contents);
-        let ast = parser::Parser::parse(tokens).expect("error parsing tokens, invalid grammar");
-        let assembly = assembler::Assembler::assemble(&ast);
+        let tokens = lexer::lex(&contents);
+        let ast = parser::parse(tokens).expect("error parsing tokens, invalid grammar");
+        let assembly = assembler::assemble(&ast);
 
         let mut file = fs::File::create("assembly.s").expect("Error creating file");
         file.write_all(assembly.as_bytes()).expect("Error writing to file");
