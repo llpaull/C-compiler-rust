@@ -49,7 +49,7 @@ impl Lexer {
                             let mut keyword = String::new();
                             keyword.push(char);
                             while let Some(&char) = char_iter.peek() {
-                                if char.is_alphabetic() {
+                                if char.is_alphanumeric() {
                                     keyword.push(char);
                                     char_iter.next();
                                 } else {

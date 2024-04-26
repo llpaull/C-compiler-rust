@@ -66,11 +66,11 @@ impl Parser {
 }
 
 #[derive(Debug)]
-pub struct Program {funcs: Vec<FunDecl>}
+pub struct Program {pub funcs: Vec<FunDecl>}
 impl Program {}
 
 #[derive(Debug)]
-pub struct FunDecl {name: String, body: Vec<Statement>}
+pub struct FunDecl {pub name: String, pub body: Vec<Statement>}
 impl FunDecl {}
 
 #[derive(Debug)]
