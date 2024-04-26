@@ -57,7 +57,16 @@ fn parse_statement(iter: &mut std::slice::Iter<Token>) -> Result<Statement, &'st
 fn parse_expression(iter: &mut std::slice::Iter<Token>) -> Result<Exp, &'static str> {
     match iter.next() {
         Some(Token::Integer(n)) => Ok(Exp::Integer(*n)),
-        _ => Err("Expected return statement to return an int"),
+        Some(Token::UnaryOp(op)) => {
+            let exp = parse_expression(iter)?;
+            match op.as_str() {
+                "-" => Ok(Exp::UnaryOp(UnaryOp::Negation, Box::new(exp))),
+                "!" => Ok(Exp::UnaryOp(UnaryOp::Not, Box::new(exp))),
+                "~" => Ok(Exp::UnaryOp(UnaryOp::BitNot, Box::new(exp))),
+                _ => Err("Unknown unary operator"),
+            }
+        },
+        _ => Err("Expected expression"),
     }
 }
 
@@ -77,4 +86,12 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum Exp{
     Integer(i64),
+    UnaryOp(UnaryOp, Box<Exp>),
+}
+
+#[derive(Debug)]
+pub enum UnaryOp {
+    Negation,
+    Not,
+    BitNot,
 }
