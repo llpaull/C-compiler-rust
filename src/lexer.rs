@@ -10,7 +10,7 @@ pub enum Token {
     Keyword(String),
     Identifier(String),
     Integer(i64),
-    UnaryOp(String),
+    Operator(String),
 }
 
 const KEYWORDS: [&str; 2] = ["int", "return"];
@@ -30,9 +30,12 @@ pub fn lex(s: &str) -> Vec<Token> {
                 '[' => tokens.push(Token::LBracket),
                 ']' => tokens.push(Token::RBracket),
                 ';' => tokens.push(Token::Semicolon),
-                '-' => tokens.push(Token::UnaryOp("-".to_string())),
-                '~' => tokens.push(Token::UnaryOp("~".to_string())),
-                '!' => tokens.push(Token::UnaryOp("!".to_string())),
+                '-' => tokens.push(Token::Operator("-".to_string())),
+                '~' => tokens.push(Token::Operator("~".to_string())),
+                '!' => tokens.push(Token::Operator("!".to_string())),
+                '+' => tokens.push(Token::Operator("+".to_string())),
+                '*' => tokens.push(Token::Operator("*".to_string())),
+                '/' => tokens.push(Token::Operator("/".to_string())),
                 _ => {
                     if char.is_numeric() {
                         let mut num = char.to_digit(10).unwrap() as i64;

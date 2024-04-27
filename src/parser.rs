@@ -1,7 +1,8 @@
+use std::iter::Peekable;
 use crate::lexer::Token;
 
 pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
-    let mut iter = tokens.iter();
+    let mut iter = tokens.iter().peekable();
     match iter.next() {
         Some(token) => {
             match token {
@@ -41,7 +42,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
     }
 }
 
-fn parse_statement(iter: &mut std::slice::Iter<Token>) -> Result<Statement, &'static str> {
+fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Statement, &'static str> {
     match iter.next() {
         Some(Token::Keyword(kw)) if kw == "return" => {
             let exp = parse_expression(iter)?;
@@ -54,29 +55,85 @@ fn parse_statement(iter: &mut std::slice::Iter<Token>) -> Result<Statement, &'st
     }
 }
 
-fn parse_expression(iter: &mut std::slice::Iter<Token>) -> Result<Exp, &'static str> {
+fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp, &'static str> {
+    let mut term = parse_term(iter)?;
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::Operator(op) => {
+                match op.as_str() {
+                    "+" | "-" => {
+                        iter.next();
+                        let op = match op.as_str() {
+                            "+" => BinOp::Add,
+                            "-" => BinOp::Sub,
+                            _ => return Err("How the fuck did this return an error"),
+                        };
+                        let next_term = parse_term(iter)?;
+                        term = Term::BinOp(op, Box::new(term), Box::new(next_term));
+                    },
+                    _ => break,
+                }
+            },
+            _ => break,
+        }
+    }
+    Ok(Exp::Term(term))
+}
+
+fn parse_term(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Term, &'static str> {
+    let mut factor = parse_factor(iter)?;
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::Operator(op) => {
+                match op.as_str() {
+                    "*" | "/" => {
+                        iter.next();
+                        let op = match op.as_str() {
+                            "*" => BinOp::Mul,
+                            "/" => BinOp::Div,
+                            _ => return Err("How the fuck did we get to THIS error"),
+                        };
+                        let next_factor = parse_factor(iter)?;
+                        factor = Factor::BinOp(op, Box::new(factor), Box::new(next_factor));
+                    },
+                    _ => break,
+                }
+            },
+            _ => break,
+        }
+    }
+    Ok(Term::Factor(factor))
+}
+
+fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, &'static str> {
     match iter.next() {
-        Some(Token::Integer(n)) => Ok(Exp::Integer(*n)),
-        Some(Token::UnaryOp(op)) => {
-            let exp = parse_expression(iter)?;
-            match op.as_str() {
-                "-" => Ok(Exp::UnaryOp(UnaryOp::Negation, Box::new(exp))),
-                "!" => Ok(Exp::UnaryOp(UnaryOp::Not, Box::new(exp))),
-                "~" => Ok(Exp::UnaryOp(UnaryOp::BitNot, Box::new(exp))),
-                _ => Err("Unknown unary operator"),
-            }
+        Some(token) => match token {
+            Token::LParen => {
+                let exp = parse_expression(iter)?;
+                match iter.next() {
+                    Some(Token::RParen) => {},
+                    _ => return Err("unclosed braces"),
+                }
+                Ok(Factor::Paren(Box::new(exp)))
+            },
+            Token::Operator(op) => match op.as_str() {
+                "-" => Ok(Factor::UnOp(UnOp::Neg, Box::new(parse_factor(iter)?))),
+                "~" => Ok(Factor::UnOp(UnOp::BitNot, Box::new(parse_factor(iter)?))),
+                "!" => Ok(Factor::UnOp(UnOp::Not, Box::new(parse_factor(iter)?))),
+                _ => Err("BinOp inside of factor not possible"),
+            },
+            Token::Integer(n) => Ok(Factor::Integer(*n)),
+            _ => Err("Error parsing factor, incorrect token"),
         },
-        _ => Err("Expected expression"),
+        _ => Err("Reached end of tokens while parsing factor"),
     }
 }
 
 #[derive(Debug)]
 pub struct Program {pub funcs: Vec<FunDecl>}
-impl Program {}
 
 #[derive(Debug)]
 pub struct FunDecl {pub name: String, pub body: Vec<Statement>}
-impl FunDecl {}
 
 #[derive(Debug)]
 pub enum Statement {
@@ -84,14 +141,36 @@ pub enum Statement {
 }
 
 #[derive(Debug)]
-pub enum Exp{
-    Integer(i64),
-    UnaryOp(UnaryOp, Box<Exp>),
+pub enum Exp {
+    Term(Term),
 }
 
 #[derive(Debug)]
-pub enum UnaryOp {
-    Negation,
+pub enum Term {
+    Factor(Factor),
+    BinOp(BinOp, Box<Term>, Box<Term>),
+}
+
+#[derive(Debug)]
+pub enum Factor {
+    Integer(i64),
+    Paren(Box<Exp>),
+    UnOp(UnOp, Box<Factor>),
+    BinOp(BinOp, Box<Factor>, Box<Factor>),
+}
+
+#[derive(Debug)]
+pub enum UnOp {
+    Neg,
     Not,
     BitNot,
 }
+
+#[derive(Debug)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
