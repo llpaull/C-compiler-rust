@@ -1,20 +1,4 @@
-#[derive(Debug, PartialEq)]
-pub enum Token {
-    LParen,
-    RParen,
-    LBrace,
-    RBrace,
-    LBracket,
-    RBracket,
-    Semicolon,
-    Keyword(String),
-    Identifier(String),
-    Integer(i64),
-    Operator(String),
-}
-
 const KEYWORDS: [&str; 2] = ["int", "return"];
-
 
 pub fn lex(s: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
@@ -72,4 +56,19 @@ pub fn lex(s: &str) -> Vec<Token> {
         }
     }
     tokens
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Token {
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Semicolon,
+    Keyword(String),
+    Identifier(String),
+    Integer(i64),
+    Operator(String),
 }
