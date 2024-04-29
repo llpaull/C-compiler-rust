@@ -89,6 +89,13 @@ pub fn lex(s: &str) -> Vec<Token> {
                     },
                     _ => tokens.push(Token::Operator("%")),
                 },
+                '^' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("^="));
+                    },
+                    _ => tokens.push(Token::Operator("^")),
+                },
                 '=' => match char_iter.peek() {
                     Some('=') => {
                         char_iter.next();

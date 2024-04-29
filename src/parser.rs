@@ -75,15 +75,69 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
 }
 
 fn parse_logic_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<LogicAndExp, &'static str> {
-    let mut ret = LogicAndExp::Equality(parse_equality_exp(iter)?); 
+    let mut ret = LogicAndExp::BitOr(parse_bit_or_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
             Token::Operator(op) => match *op {
                 "&&" => {
                     iter.next();
                     let new_op = LogicAndOp::LogicAnd;
-                    let next = LogicAndExp::Equality(parse_equality_exp(iter)?);
+                    let next = LogicAndExp::BitOr(parse_bit_or_exp(iter)?);
                     ret = LogicAndExp::Operator(new_op, Box::new(ret), Box::new(next));
+                }
+                _ => break,
+            }
+            _ => break,
+        }
+    }
+    Ok(ret)
+}
+
+fn parse_bit_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitOrExp, &'static str> {
+    let mut ret = BitOrExp::BitXor(parse_bit_xor_exp(iter)?);
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::Operator(op) => match *op {
+                "|" => {
+                    iter.next();
+                    let next = BitOrExp::BitXor(parse_bit_xor_exp(iter)?);
+                    ret = BitOrExp::Operator(BitOrOp::BitOr, Box::new(ret), Box::new(next));
+                }
+                _ => break,
+            }
+            _ => break,
+        }
+    }
+    Ok(ret)
+}
+
+fn parse_bit_xor_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitXorExp, &'static str> {
+    let mut ret = BitXorExp::BitAnd(parse_bit_and_exp(iter)?);
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::Operator(op) => match *op {
+                "^" => {
+                    iter.next();
+                    let next = BitXorExp::BitAnd(parse_bit_and_exp(iter)?);
+                    ret = BitXorExp::Operator(BitXorOp::BitXor, Box::new(ret), Box::new(next));
+                }
+                _ => break,
+            }
+            _ => break,
+        }
+    }
+    Ok(ret)
+}
+
+fn parse_bit_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitAndExp, &'static str> {
+    let mut ret = BitAndExp::Equality(parse_equality_exp(iter)?);
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::Operator(op) => match *op {
+                "&" => {
+                    iter.next();
+                    let next = BitAndExp::Equality(parse_equality_exp(iter)?);
+                    ret = BitAndExp::Operator(BitAndOp::BitAnd, Box::new(ret), Box::new(next));
                 }
                 _ => break,
             }
@@ -261,8 +315,26 @@ pub enum Exp {
 
 #[derive(Debug)]
 pub enum LogicAndExp {
-    Equality(EqualityExp),
+    BitOr(BitOrExp),
     Operator(LogicAndOp, Box<LogicAndExp>, Box<LogicAndExp>),
+}
+
+#[derive(Debug)]
+pub enum BitOrExp {
+    BitXor(BitXorExp),
+    Operator(BitOrOp, Box<BitOrExp>, Box<BitOrExp>),
+}
+
+#[derive(Debug)]
+pub enum BitXorExp {
+    BitAnd(BitAndExp),
+    Operator(BitXorOp, Box<BitXorExp>, Box<BitXorExp>),
+}
+
+#[derive(Debug)]
+pub enum BitAndExp {
+    Equality(EqualityExp),
+    Operator(BitAndOp, Box<BitAndExp>, Box<BitAndExp>),
 }
 
 #[derive(Debug)]
@@ -340,6 +412,21 @@ pub enum RelationOp {
 pub enum EqualityOp {
     Equals,
     NotEquals,
+}
+
+#[derive(Debug)]
+pub enum BitAndOp {
+    BitAnd,
+}
+
+#[derive(Debug)]
+pub enum BitXorOp {
+    BitXor,
+}
+
+#[derive(Debug)]
+pub enum BitOrOp {
+    BitOr,
 }
 
 #[derive(Debug)]

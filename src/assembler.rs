@@ -41,7 +41,7 @@ fn assemble_exp(exp: &parser::Exp, res: &mut String) {
 
 fn assemble_logic_and(logic_and: &parser::LogicAndExp, res: &mut String) {
     match logic_and {
-        parser::LogicAndExp::Equality(equality) => assemble_equality(equality, res),
+        parser::LogicAndExp::BitOr(bit_or) => assemble_bit_or(bit_or, res),
         parser::LogicAndExp::Operator(_op, l, r) => {
             assemble_logic_and(l, res);
             res.push_str("cmpq $0, %rax\n");
@@ -55,6 +55,45 @@ fn assemble_logic_and(logic_and: &parser::LogicAndExp, res: &mut String) {
             res.push_str("movq $0, %rax\n");
             res.push_str("setne %al\n");
             res.push_str(&format!("_{}:\n", end));
+        },
+    }
+}
+
+fn assemble_bit_or(bit_or: &parser::BitOrExp, res: &mut String) {
+    match bit_or {
+        parser::BitOrExp::BitXor(bit_xor) => assemble_bit_xor(bit_xor, res),
+        parser::BitOrExp::Operator(_op, l, r) => {
+            assemble_bit_or(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_bit_or(r, res);
+            res.push_str("popq %rcx\n");
+            res.push_str("orq %rcx, %rax\n");
+        },
+    }
+}
+
+fn assemble_bit_xor(bit_xor: &parser::BitXorExp, res: &mut String) {
+    match bit_xor {
+        parser::BitXorExp::BitAnd(bit_and) => assemble_bit_and(bit_and, res),
+        parser::BitXorExp::Operator(_op, l, r) => {
+            assemble_bit_xor(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_bit_xor(r, res);
+            res.push_str("popq %rcx\n");
+            res.push_str("xorq %rcx, %rax\n");
+        },
+    }
+}
+
+fn assemble_bit_and(bit_and: &parser::BitAndExp, res: &mut String) {
+    match bit_and {
+        parser::BitAndExp::Equality(equality) => assemble_equality(equality, res),
+        parser::BitAndExp::Operator(_op, l, r) => {
+            assemble_bit_and(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_bit_and(r, res);
+            res.push_str("popq %rcx\n");
+            res.push_str("andq %rcx, %rax\n");
         },
     }
 }
