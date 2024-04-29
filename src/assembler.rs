@@ -79,7 +79,7 @@ fn assemble_equality(equality: &parser::EqualityExp, res: &mut String) {
 
 fn assemble_rel(rel: &parser::RelExp, res: &mut String) {
     match rel {
-        parser::RelExp::Additive(additive) => assemble_additive(additive, res),
+        parser::RelExp::Shift(shift) => assemble_shift(shift, res),
         parser::RelExp::Operator(op, l, r) => {
             assemble_rel(l, res);
             res.push_str("pushq %rax\n");
@@ -92,6 +92,23 @@ fn assemble_rel(rel: &parser::RelExp, res: &mut String) {
                 parser::RelationOp::LessEqual => res.push_str("setle %al\n"),
                 parser::RelationOp::GreaterThan => res.push_str("setg %al\n"),
                 parser::RelationOp::GreaterEqual => res.push_str("setge %al\n"),
+            }
+        },
+    }
+}
+
+fn assemble_shift(shift: &parser::ShiftExp, res: &mut String) {
+    match shift {
+        parser::ShiftExp::Additive(additive) => assemble_additive(additive, res),
+        parser::ShiftExp::Operator(op, l, r) => {
+            assemble_shift(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_shift(r, res);
+            res.push_str("movq %rax, %rcx\n");
+            res.push_str("popq %rax\n");
+            match op {
+                parser::ShiftOp::LShift => res.push_str("shl %rcx, %rax\n"),
+                parser::ShiftOp::RShift => res.push_str("shr %rcx, %rax\n"),
             }
         },
     }
@@ -136,6 +153,13 @@ fn assemble_term(term: &parser::Term, res: &mut String) {
                     res.push_str("popq %rax\n");
                     res.push_str("cqo\n");
                     res.push_str("idivq %rcx\n");
+                },
+                parser::TermOp::Mod => {
+                    res.push_str("movq %rax, %rcx\n");
+                    res.push_str("popq %rax\n");
+                    res.push_str("cqo\n");
+                    res.push_str("idivq %rcx\n");
+                    res.push_str("movq %rdx, %rax\n");
                 },
             }
         },

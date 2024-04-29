@@ -117,7 +117,7 @@ fn parse_equality_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Eq
 }
 
 fn parse_rel_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<RelExp, &'static str> {
-    let mut ret = RelExp::Additive(parse_additive_exp(iter)?);
+    let mut ret = RelExp::Shift(parse_shift_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
             Token::Operator(op) => match *op {
@@ -130,8 +130,31 @@ fn parse_rel_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<RelExp,
                         ">=" => RelationOp::GreaterEqual,
                         _ => return Err("somehow no match although it matched"),
                     };
-                    let next = RelExp::Additive(parse_additive_exp(iter)?);
+                    let next = RelExp::Shift(parse_shift_exp(iter)?);
                     ret = RelExp::Operator(new_op, Box::new(ret), Box::new(next));
+                }
+                _ => break,
+            }
+            _ => break,
+        }
+    }
+    Ok(ret)
+}
+
+fn parse_shift_exp(iter : &mut Peekable<std::slice::Iter<Token>>) -> Result<ShiftExp, &'static str> {
+    let mut ret = ShiftExp::Additive(parse_additive_exp(iter)?);
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::Operator(op) => match *op {
+                s@("<<" | ">>") => {
+                    iter.next();
+                    let new_op = match s {
+                        "<<" => ShiftOp::LShift,
+                        ">>" => ShiftOp::RShift,
+                        _ => return Err("somehow no match although it matched"),
+                    };
+                    let next = ShiftExp::Additive(parse_additive_exp(iter)?);
+                    ret = ShiftExp::Operator(new_op, Box::new(ret), Box::new(next));
                 }
                 _ => break,
             }
@@ -169,11 +192,12 @@ fn parse_term(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Term, &'st
     while let Some(token) = iter.peek() {
         match token {
             Token::Operator(op) => match *op {
-                s@("*" | "/") => {
+                s@("*" | "/" | "%") => {
                     iter.next();
                     let new_op = match s {
                         "*" => TermOp::Mult,
                         "/" => TermOp::Div,
+                        "%" => TermOp::Mod,
                         _ => return Err("somehow no match although it matched"),
                     };
                     let next = Term::Factor(parse_factor(iter)?);
@@ -249,8 +273,14 @@ pub enum EqualityExp {
 
 #[derive(Debug)]
 pub enum RelExp {
-    Additive(AdditiveExp),
+    Shift(ShiftExp),
     Operator(RelationOp, Box<RelExp>, Box<RelExp>),
+}
+
+#[derive(Debug)]
+pub enum ShiftExp {
+    Additive(AdditiveExp),
+    Operator(ShiftOp, Box<ShiftExp>, Box<ShiftExp>),
 }
 
 #[derive(Debug)]
@@ -283,12 +313,19 @@ pub enum FactorOp {
 pub enum TermOp {
     Mult,
     Div,
+    Mod,
 }
 
 #[derive(Debug)]
 pub enum AdditiveOp {
     Add,
     Sub,
+}
+
+#[derive(Debug)]
+pub enum ShiftOp {
+    LShift,
+    RShift,
 }
 
 #[derive(Debug)]
