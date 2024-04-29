@@ -37,7 +37,17 @@ fn main() {
 
     if let Ok(contents) = fs::read_to_string(filename) {
         let tokens = lexer::lex(&contents);
+
+        #[cfg(debug_assertions)]
+        for token in &tokens {
+            println!("{:?}", token);
+        }
+
         let ast = parser::parse(tokens).expect("error parsing tokens, invalid grammar");
+
+        #[cfg(debug_assertions)]
+        println!("{:#?}", ast);
+
         let assembly = assembler::assemble(&ast);
 
         let mut file = fs::File::create("assembly.s").expect("Error creating file");

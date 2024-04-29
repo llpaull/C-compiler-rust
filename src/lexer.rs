@@ -2,8 +2,8 @@ const KEYWORDS: [&str; 2] = ["int", "return"];
 
 pub fn lex(s: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
-    let mut iter = s.split_whitespace();
-    while let Some(word) = iter.next() {
+    let mut word_iter = s.split_whitespace();
+    while let Some(word) = word_iter.next() {
         let mut char_iter = word.chars().peekable();
         while let Some(char) = char_iter.next() {
             match char {
@@ -19,28 +19,46 @@ pub fn lex(s: &str) -> Vec<Token> {
                 '+' => tokens.push(Token::Operator("+".to_string())),
                 '*' => tokens.push(Token::Operator("*".to_string())),
                 '/' => tokens.push(Token::Operator("/".to_string())),
-                '!' => match char_iter.next() {
-                    Some('=') => tokens.push(Token::Operator("!=".to_string())),
+                '!' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("!=".to_string()));
+                    },
                     _ => tokens.push(Token::Operator("!".to_string())),
                 },
-                '<' => match char_iter.next() {
-                    Some('=') => tokens.push(Token::Operator("<=".to_string())),
+                '<' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("<=".to_string()));
+                    },
                     _ => tokens.push(Token::Operator("<".to_string())),
                 },
-                '>' => match char_iter.next() {
-                    Some('=') => tokens.push(Token::Operator(">=".to_string())),
+                '>' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator(">=".to_string()));
+                    },
                     _ => tokens.push(Token::Operator(">".to_string())),
                 },
-                '=' => match char_iter.next() {
-                    Some('=') => tokens.push(Token::Operator("==".to_string())),
+                '=' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("==".to_string()));
+                    },
                     _ => tokens.push(Token::Operator("=".to_string())),
                 },
-                '&' => match char_iter.next() {
-                    Some('&') => tokens.push(Token::Operator("&&".to_string())),
+                '&' => match char_iter.peek() {
+                    Some('&') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("&&".to_string()));
+                    },
                     _ => tokens.push(Token::Operator("&".to_string())),
                 },
-                '|' => match char_iter.next() {
-                    Some('|') => tokens.push(Token::Operator("||".to_string())),
+                '|' => match char_iter.peek() {
+                    Some('|') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("||".to_string()));
+                    },
                     _ => tokens.push(Token::Operator("|".to_string())),
                 },
                 ' ' => {},

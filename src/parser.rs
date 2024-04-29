@@ -75,15 +75,15 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
 }
 
 fn parse_logic_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<LogicAndExp, &'static str> {
-    let mut ret = LogicAndExp::Equal(parse_equal_exp(iter)?); 
+    let mut ret = LogicAndExp::Equality(parse_equality_exp(iter)?); 
     while let Some(token) = iter.peek() {
         match token {
             Token::Operator(op) => match op.as_str() {
                 "&&" => {
                     iter.next();
                     let new_op = LogicAndOp::LogicAnd;
-                    let next = LogicAndExp::Equal(parse_equal_exp(iter)?);
-                    let ret = LogicAndExp::Operator(new_op, Box::new(ret), Box::new(next));
+                    let next = LogicAndExp::Equality(parse_equality_exp(iter)?);
+                    ret = LogicAndExp::Operator(new_op, Box::new(ret), Box::new(next));
                 }
                 _ => break,
             }
@@ -93,8 +93,8 @@ fn parse_logic_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<L
     Ok(ret)
 }
 
-fn parse_equal_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<EqualExp, &'static str> {
-    let mut ret = EqualExp::Rel(parse_rel_exp(iter)?);
+fn parse_equality_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<EqualityExp, &'static str> {
+    let mut ret = EqualityExp::Rel(parse_rel_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
             Token::Operator(op) => match op.as_str() {
@@ -103,9 +103,10 @@ fn parse_equal_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Equal
                     let new_op = match s {
                         "==" => EqualityOp::Equals,
                         "!=" => EqualityOp::NotEquals,
+                        _ => return Err("somehow no match although it matched"),
                     };
-                    let next = EqualExp::Rel(parse_rel_exp(iter)?);
-                    ret = EqualExp::Operator(new_op, Box::new(ret), Box::new(next));
+                    let next = EqualityExp::Rel(parse_rel_exp(iter)?);
+                    ret = EqualityExp::Operator(new_op, Box::new(ret), Box::new(next));
                 }
                 _ => break,
             }
@@ -124,9 +125,10 @@ fn parse_rel_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<RelExp,
                     iter.next();
                     let new_op = match s {
                         "<" => RelationOp::LessThan,
-                        ">" => RelationOp::LessEqual,
-                        "<=" => RelationOp::GreaterThan,
+                        ">" => RelationOp::GreaterThan,
+                        "<=" => RelationOp::LessEqual,
                         ">=" => RelationOp::GreaterEqual,
+                        _ => return Err("somehow no match although it matched"),
                     };
                     let next = RelExp::Additive(parse_additive_exp(iter)?);
                     ret = RelExp::Operator(new_op, Box::new(ret), Box::new(next));
@@ -149,6 +151,7 @@ fn parse_additive_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Ad
                     let new_op = match s {
                         "+" => AdditiveOp::Add,
                         "-" => AdditiveOp::Sub,
+                        _ => return Err("somehow no match although it matched"),
                     };
                     let next = AdditiveExp::Term(parse_term(iter)?);
                     ret = AdditiveExp::Operator(new_op, Box::new(ret), Box::new(next));
@@ -171,6 +174,7 @@ fn parse_term(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Term, &'st
                     let new_op = match s {
                         "*" => TermOp::Mult,
                         "/" => TermOp::Div,
+                        _ => return Err("somehow no match although it matched"),
                     };
                     let next = Term::Factor(parse_factor(iter)?);
                     ret = Term::Operator(new_op, Box::new(ret), Box::new(next));
@@ -233,14 +237,14 @@ pub enum Exp {
 
 #[derive(Debug)]
 pub enum LogicAndExp {
-    Equal(EqualExp),
+    Equality(EqualityExp),
     Operator(LogicAndOp, Box<LogicAndExp>, Box<LogicAndExp>),
 }
 
 #[derive(Debug)]
-pub enum EqualExp {
+pub enum EqualityExp {
     Rel(RelExp),
-    Operator(EqualityOp, Box<EqualExp>, Box<EqualExp>),
+    Operator(EqualityOp, Box<EqualityExp>, Box<EqualityExp>),
 }
 
 #[derive(Debug)]
