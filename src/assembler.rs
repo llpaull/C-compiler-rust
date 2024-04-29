@@ -41,7 +41,7 @@ fn assemble_exp(exp: &parser::Exp, res: &mut String) {
 
 fn assemble_logic_and(logic_and: &parser::LogicAndExp, res: &mut String) {
     match logic_and {
-        parser::LogicAndExp::Equality(equality) => assemble_equality(equality, res),
+        parser::LogicAndExp::BitOr(bit_or) => assemble_bit_or(bit_or, res),
         parser::LogicAndExp::Operator(_op, l, r) => {
             assemble_logic_and(l, res);
             res.push_str("cmpq $0, %rax\n");
@@ -55,6 +55,45 @@ fn assemble_logic_and(logic_and: &parser::LogicAndExp, res: &mut String) {
             res.push_str("movq $0, %rax\n");
             res.push_str("setne %al\n");
             res.push_str(&format!("_{}:\n", end));
+        },
+    }
+}
+
+fn assemble_bit_or(bit_or: &parser::BitOrExp, res: &mut String) {
+    match bit_or {
+        parser::BitOrExp::BitXor(bit_xor) => assemble_bit_xor(bit_xor, res),
+        parser::BitOrExp::Operator(_op, l, r) => {
+            assemble_bit_or(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_bit_or(r, res);
+            res.push_str("popq %rcx\n");
+            res.push_str("orq %rcx, %rax\n");
+        },
+    }
+}
+
+fn assemble_bit_xor(bit_xor: &parser::BitXorExp, res: &mut String) {
+    match bit_xor {
+        parser::BitXorExp::BitAnd(bit_and) => assemble_bit_and(bit_and, res),
+        parser::BitXorExp::Operator(_op, l, r) => {
+            assemble_bit_xor(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_bit_xor(r, res);
+            res.push_str("popq %rcx\n");
+            res.push_str("xorq %rcx, %rax\n");
+        },
+    }
+}
+
+fn assemble_bit_and(bit_and: &parser::BitAndExp, res: &mut String) {
+    match bit_and {
+        parser::BitAndExp::Equality(equality) => assemble_equality(equality, res),
+        parser::BitAndExp::Operator(_op, l, r) => {
+            assemble_bit_and(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_bit_and(r, res);
+            res.push_str("popq %rcx\n");
+            res.push_str("andq %rcx, %rax\n");
         },
     }
 }
@@ -79,7 +118,7 @@ fn assemble_equality(equality: &parser::EqualityExp, res: &mut String) {
 
 fn assemble_rel(rel: &parser::RelExp, res: &mut String) {
     match rel {
-        parser::RelExp::Additive(additive) => assemble_additive(additive, res),
+        parser::RelExp::Shift(shift) => assemble_shift(shift, res),
         parser::RelExp::Operator(op, l, r) => {
             assemble_rel(l, res);
             res.push_str("pushq %rax\n");
@@ -92,6 +131,23 @@ fn assemble_rel(rel: &parser::RelExp, res: &mut String) {
                 parser::RelationOp::LessEqual => res.push_str("setle %al\n"),
                 parser::RelationOp::GreaterThan => res.push_str("setg %al\n"),
                 parser::RelationOp::GreaterEqual => res.push_str("setge %al\n"),
+            }
+        },
+    }
+}
+
+fn assemble_shift(shift: &parser::ShiftExp, res: &mut String) {
+    match shift {
+        parser::ShiftExp::Additive(additive) => assemble_additive(additive, res),
+        parser::ShiftExp::Operator(op, l, r) => {
+            assemble_shift(l, res);
+            res.push_str("pushq %rax\n");
+            assemble_shift(r, res);
+            res.push_str("movq %rax, %rcx\n");
+            res.push_str("popq %rax\n");
+            match op {
+                parser::ShiftOp::LShift => res.push_str("sal %rcx, %rax\n"),
+                parser::ShiftOp::RShift => res.push_str("sar %rcx, %rax\n"),
             }
         },
     }
@@ -136,6 +192,13 @@ fn assemble_term(term: &parser::Term, res: &mut String) {
                     res.push_str("popq %rax\n");
                     res.push_str("cqo\n");
                     res.push_str("idivq %rcx\n");
+                },
+                parser::TermOp::Mod => {
+                    res.push_str("movq %rax, %rcx\n");
+                    res.push_str("popq %rax\n");
+                    res.push_str("cqo\n");
+                    res.push_str("idivq %rcx\n");
+                    res.push_str("movq %rdx, %rax\n");
                 },
             }
         },

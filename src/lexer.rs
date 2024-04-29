@@ -14,52 +14,94 @@ pub fn lex(s: &str) -> Vec<Token> {
                 '[' => tokens.push(Token::LBracket),
                 ']' => tokens.push(Token::RBracket),
                 ';' => tokens.push(Token::Semicolon),
-                '-' => tokens.push(Token::Operator("-".to_string())),
-                '~' => tokens.push(Token::Operator("~".to_string())),
-                '+' => tokens.push(Token::Operator("+".to_string())),
-                '*' => tokens.push(Token::Operator("*".to_string())),
-                '/' => tokens.push(Token::Operator("/".to_string())),
+                '-' => tokens.push(Token::Operator("-")),
+                '~' => tokens.push(Token::Operator("~")),
+                '+' => tokens.push(Token::Operator("+")),
+                '*' => tokens.push(Token::Operator("*")),
+                '/' => tokens.push(Token::Operator("/")),
                 '!' => match char_iter.peek() {
                     Some('=') => {
                         char_iter.next();
-                        tokens.push(Token::Operator("!=".to_string()));
+                        tokens.push(Token::Operator("!="));
                     },
-                    _ => tokens.push(Token::Operator("!".to_string())),
+                    _ => tokens.push(Token::Operator("!")),
                 },
                 '<' => match char_iter.peek() {
                     Some('=') => {
                         char_iter.next();
-                        tokens.push(Token::Operator("<=".to_string()));
+                        tokens.push(Token::Operator("<="));
                     },
-                    _ => tokens.push(Token::Operator("<".to_string())),
+                    Some('<') => {
+                        char_iter.next();
+                        match char_iter.peek() {
+                            Some('=') => {
+                                char_iter.next();
+                                tokens.push(Token::Operator("<<="));
+                            },
+                            _ => tokens.push(Token::Operator("<<")),
+                        }
+                    },
+                    _ => tokens.push(Token::Operator("<")),
                 },
                 '>' => match char_iter.peek() {
                     Some('=') => {
                         char_iter.next();
-                        tokens.push(Token::Operator(">=".to_string()));
+                        tokens.push(Token::Operator(">="));
                     },
-                    _ => tokens.push(Token::Operator(">".to_string())),
-                },
-                '=' => match char_iter.peek() {
-                    Some('=') => {
+                    Some('>') => {
                         char_iter.next();
-                        tokens.push(Token::Operator("==".to_string()));
+                        match char_iter.peek() {
+                            Some('=') => {
+                                char_iter.next();
+                                tokens.push(Token::Operator(">>="));
+                            },
+                            _ => tokens.push(Token::Operator(">>")),
+                        }
                     },
-                    _ => tokens.push(Token::Operator("=".to_string())),
+                    _ => tokens.push(Token::Operator(">")),
                 },
                 '&' => match char_iter.peek() {
                     Some('&') => {
                         char_iter.next();
-                        tokens.push(Token::Operator("&&".to_string()));
+                        tokens.push(Token::Operator("&&"));
                     },
-                    _ => tokens.push(Token::Operator("&".to_string())),
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("&="));
+                    },
+                    _ => tokens.push(Token::Operator("&")),
                 },
                 '|' => match char_iter.peek() {
                     Some('|') => {
                         char_iter.next();
-                        tokens.push(Token::Operator("||".to_string()));
+                        tokens.push(Token::Operator("||"));
                     },
-                    _ => tokens.push(Token::Operator("|".to_string())),
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("|="));
+                    },
+                    _ => tokens.push(Token::Operator("|")),
+                },
+                '%' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("%="));
+                    },
+                    _ => tokens.push(Token::Operator("%")),
+                },
+                '^' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("^="));
+                    },
+                    _ => tokens.push(Token::Operator("^")),
+                },
+                '=' => match char_iter.peek() {
+                    Some('=') => {
+                        char_iter.next();
+                        tokens.push(Token::Operator("=="));
+                    },
+                    _ => tokens.push(Token::Operator("=")),
                 },
                 ' ' => {},
                 _ => {
@@ -112,5 +154,5 @@ pub enum Token {
     Keyword(String),
     Identifier(String),
     Integer(i64),
-    Operator(String),
+    Operator(&'static str),
 }
