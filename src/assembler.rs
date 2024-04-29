@@ -146,8 +146,8 @@ fn assemble_shift(shift: &parser::ShiftExp, res: &mut String) {
             res.push_str("movq %rax, %rcx\n");
             res.push_str("popq %rax\n");
             match op {
-                parser::ShiftOp::LShift => res.push_str("shl %rcx, %rax\n"),
-                parser::ShiftOp::RShift => res.push_str("shr %rcx, %rax\n"),
+                parser::ShiftOp::LShift => res.push_str("sal %rcx, %rax\n"),
+                parser::ShiftOp::RShift => res.push_str("sar %rcx, %rax\n"),
             }
         },
     }
