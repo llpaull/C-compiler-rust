@@ -16,10 +16,34 @@ pub fn lex(s: &str) -> Vec<Token> {
                 ';' => tokens.push(Token::Semicolon),
                 '-' => tokens.push(Token::Operator("-".to_string())),
                 '~' => tokens.push(Token::Operator("~".to_string())),
-                '!' => tokens.push(Token::Operator("!".to_string())),
                 '+' => tokens.push(Token::Operator("+".to_string())),
                 '*' => tokens.push(Token::Operator("*".to_string())),
                 '/' => tokens.push(Token::Operator("/".to_string())),
+                '!' => match char_iter.next() {
+                    Some('=') => tokens.push(Token::Operator("!=".to_string())),
+                    _ => tokens.push(Token::Operator("!".to_string())),
+                },
+                '<' => match char_iter.next() {
+                    Some('=') => tokens.push(Token::Operator("<=".to_string())),
+                    _ => tokens.push(Token::Operator("<".to_string())),
+                },
+                '>' => match char_iter.next() {
+                    Some('=') => tokens.push(Token::Operator(">=".to_string())),
+                    _ => tokens.push(Token::Operator(">".to_string())),
+                },
+                '=' => match char_iter.next() {
+                    Some('=') => tokens.push(Token::Operator("==".to_string())),
+                    _ => tokens.push(Token::Operator("=".to_string())),
+                },
+                '&' => match char_iter.next() {
+                    Some('&') => tokens.push(Token::Operator("&&".to_string())),
+                    _ => tokens.push(Token::Operator("&".to_string())),
+                },
+                '|' => match char_iter.next() {
+                    Some('|') => tokens.push(Token::Operator("||".to_string())),
+                    _ => tokens.push(Token::Operator("|".to_string())),
+                },
+                ' ' => {},
                 _ => {
                     if char.is_numeric() {
                         let mut num = char.to_digit(10).unwrap() as i64;
