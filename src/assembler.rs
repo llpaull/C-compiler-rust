@@ -226,9 +226,9 @@ fn assemble_factor(factor: &parser::Factor, res: &mut String) {
         parser::Factor::Operator(op, exp) => {
             assemble_factor(exp, res);
             match op {
-                parser::FactorOp::Neg => res.push_str("negq %rax\n"),
+                parser::FactorOp::Negate => res.push_str("negq %rax\n"),
                 parser::FactorOp::BitNot => res.push_str("notq %rax\n"),
-                parser::FactorOp::Not => {
+                parser::FactorOp::LogicalNot => {
                     res.push_str("cmpq $0, %rax\n");
                     res.push_str("movq $0, %rax\n");
                     res.push_str("sete %al\n");

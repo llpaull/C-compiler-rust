@@ -12,94 +12,118 @@ pub fn lex(s: &str) -> Vec<Token> {
             '[' => tokens.push(Token::LBracket),
             ']' => tokens.push(Token::RBracket),
             ';' => tokens.push(Token::Semicolon),
-            '-' => tokens.push(Token::Operator("-")),
-            '~' => tokens.push(Token::Operator("~")),
-            '+' => tokens.push(Token::Operator("+")),
-            '*' => tokens.push(Token::Operator("*")),
-            '/' => tokens.push(Token::Operator("/")),
+            '~' => tokens.push(Token::Operator(Operation::BitNot)),
+            '-' => match iter.peek() {
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::Operator(Operation::MinusAssign));
+                },
+                _ => tokens.push(Token::Operator(Operation::Minus)),
+            },
+            '+' => match iter.peek() {
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::Operator(Operation::PlusAssign));
+                },
+                _ => tokens.push(Token::Operator(Operation::Plus)),
+            },
+            '*' => match iter.peek() {
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::Operator(Operation::MultAssign));
+                },
+                _ => tokens.push(Token::Operator(Operation::Mult)),
+            },
+            '/' => match iter.peek() {
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::Operator(Operation::DivAssign));
+                },
+                _ => tokens.push(Token::Operator(Operation::Div)),
+            },
             '!' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator("!="));
+                    tokens.push(Token::Operator(Operation::NotEqual));
                 },
-                _ => tokens.push(Token::Operator("!")),
+                _ => tokens.push(Token::Operator(Operation::LogicalNot)),
             },
             '<' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator("<="));
+                    tokens.push(Token::Operator(Operation::LessThanOrEqual));
                 },
                 Some('<') => {
                     iter.next();
                     match iter.peek() {
                         Some('=') => {
                             iter.next();
-                            tokens.push(Token::Operator("<<="));
+                            tokens.push(Token::Operator(Operation::LeftShiftAssign));
                         },
-                        _ => tokens.push(Token::Operator("<<")),
+                        _ => tokens.push(Token::Operator(Operation::LeftShift)),
                     }
                 },
-                _ => tokens.push(Token::Operator("<")),
+                _ => tokens.push(Token::Operator(Operation::LessThan)),
             },
             '>' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(">="));
+                    tokens.push(Token::Operator(Operation::GreaterThanOrEqual));
                 },
                 Some('>') => {
                     iter.next();
                     match iter.peek() {
                         Some('=') => {
                             iter.next();
-                            tokens.push(Token::Operator(">>="));
+                            tokens.push(Token::Operator(Operation::RightShiftAssign));
                         },
-                        _ => tokens.push(Token::Operator(">>")),
+                        _ => tokens.push(Token::Operator(Operation::RightShift)),
                     }
                 },
-                _ => tokens.push(Token::Operator(">")),
+                _ => tokens.push(Token::Operator(Operation::GreaterThan)),
             },
             '&' => match iter.peek() {
                 Some('&') => {
                     iter.next();
-                    tokens.push(Token::Operator("&&"));
+                    tokens.push(Token::Operator(Operation::LogicalAnd));
                 },
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator("&="));
+                    tokens.push(Token::Operator(Operation::BitAndAssign));
                 },
-                _ => tokens.push(Token::Operator("&")),
+                _ => tokens.push(Token::Operator(Operation::BitAnd)),
             },
             '|' => match iter.peek() {
                 Some('|') => {
                     iter.next();
-                    tokens.push(Token::Operator("||"));
+                    tokens.push(Token::Operator(Operation::LogicalOr));
                 },
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator("|="));
+                    tokens.push(Token::Operator(Operation::BitOrAssign));
                 },
-                _ => tokens.push(Token::Operator("|")),
+                _ => tokens.push(Token::Operator(Operation::BitOr)),
             },
             '%' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator("%="));
+                    tokens.push(Token::Operator(Operation::ModAssign));
                 },
-                _ => tokens.push(Token::Operator("%")),
+                _ => tokens.push(Token::Operator(Operation::Mod)),
             },
             '^' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator("^="));
+                    tokens.push(Token::Operator(Operation::BitXorAssign));
                 },
-                _ => tokens.push(Token::Operator("^")),
+                _ => tokens.push(Token::Operator(Operation::BitXor)),
             },
             '=' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator("=="));
+                    tokens.push(Token::Operator(Operation::Equal));
                 },
-                _ => tokens.push(Token::Operator("=")),
+                _ => tokens.push(Token::Operator(Operation::Assign)),
             },
             ' ' | '\n' | '\r' | '\t' => {},
             _ => {
@@ -139,7 +163,7 @@ pub fn lex(s: &str) -> Vec<Token> {
     tokens
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Token {
     LParen,
     RParen,
@@ -151,5 +175,40 @@ pub enum Token {
     Keyword(String),
     Identifier(String),
     Integer(i64),
-    Operator(&'static str),
+    Operator(Operation),
+}
+
+#[derive(Debug)]
+pub enum Operation {
+    BitNot,
+    LogicalNot,
+    Plus,
+    Minus,
+    Mult,
+    Div,
+    Mod,
+    BitAnd,
+    BitOr,
+    BitXor,
+    LeftShift,
+    RightShift,
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LogicalAnd,
+    LogicalOr,
+    Assign,
+    PlusAssign,
+    MinusAssign,
+    MultAssign,
+    DivAssign,
+    ModAssign,
+    BitAndAssign,
+    BitOrAssign,
+    BitXorAssign,
+    LeftShiftAssign,
+    RightShiftAssign,
 }
