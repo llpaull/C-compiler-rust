@@ -2,8 +2,8 @@ const KEYWORDS: [&str; 2] = ["int", "return"];
 
 pub fn lex(s: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
-    let mut char_iter = s.chars().peekable();
-    while let Some(char) = char_iter.next() {
+    let mut iter = s.chars().peekable();
+    while let Some(char) = iter.next() {
         match char {
             '(' => tokens.push(Token::LParen),
             ')' => tokens.push(Token::RParen),
@@ -17,23 +17,23 @@ pub fn lex(s: &str) -> Vec<Token> {
             '+' => tokens.push(Token::Operator("+")),
             '*' => tokens.push(Token::Operator("*")),
             '/' => tokens.push(Token::Operator("/")),
-            '!' => match char_iter.peek() {
+            '!' => match iter.peek() {
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("!="));
                 },
                 _ => tokens.push(Token::Operator("!")),
             },
-            '<' => match char_iter.peek() {
+            '<' => match iter.peek() {
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("<="));
                 },
                 Some('<') => {
-                    char_iter.next();
-                    match char_iter.peek() {
+                    iter.next();
+                    match iter.peek() {
                         Some('=') => {
-                            char_iter.next();
+                            iter.next();
                             tokens.push(Token::Operator("<<="));
                         },
                         _ => tokens.push(Token::Operator("<<")),
@@ -41,16 +41,16 @@ pub fn lex(s: &str) -> Vec<Token> {
                 },
                 _ => tokens.push(Token::Operator("<")),
             },
-            '>' => match char_iter.peek() {
+            '>' => match iter.peek() {
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator(">="));
                 },
                 Some('>') => {
-                    char_iter.next();
-                    match char_iter.peek() {
+                    iter.next();
+                    match iter.peek() {
                         Some('=') => {
-                            char_iter.next();
+                            iter.next();
                             tokens.push(Token::Operator(">>="));
                         },
                         _ => tokens.push(Token::Operator(">>")),
@@ -58,45 +58,45 @@ pub fn lex(s: &str) -> Vec<Token> {
                 },
                 _ => tokens.push(Token::Operator(">")),
             },
-            '&' => match char_iter.peek() {
+            '&' => match iter.peek() {
                 Some('&') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("&&"));
                 },
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("&="));
                 },
                 _ => tokens.push(Token::Operator("&")),
             },
-            '|' => match char_iter.peek() {
+            '|' => match iter.peek() {
                 Some('|') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("||"));
                 },
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("|="));
                 },
                 _ => tokens.push(Token::Operator("|")),
             },
-            '%' => match char_iter.peek() {
+            '%' => match iter.peek() {
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("%="));
                 },
                 _ => tokens.push(Token::Operator("%")),
             },
-            '^' => match char_iter.peek() {
+            '^' => match iter.peek() {
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("^="));
                 },
                 _ => tokens.push(Token::Operator("^")),
             },
-            '=' => match char_iter.peek() {
+            '=' => match iter.peek() {
                 Some('=') => {
-                    char_iter.next();
+                    iter.next();
                     tokens.push(Token::Operator("=="));
                 },
                 _ => tokens.push(Token::Operator("=")),
@@ -105,11 +105,11 @@ pub fn lex(s: &str) -> Vec<Token> {
             _ => {
                 if char.is_numeric() {
                     let mut num = char.to_digit(10).unwrap() as i64;
-                    while let Some(&char) = char_iter.peek() {
+                    while let Some(&char) = iter.peek() {
                         if char.is_numeric() {
                             let digit = char.to_digit(10).unwrap() as i64;
                             num = num * 10 + digit;
-                            char_iter.next();
+                            iter.next();
                         } else {
                             break;
                         }
@@ -119,10 +119,10 @@ pub fn lex(s: &str) -> Vec<Token> {
                 else {
                     let mut keyword = String::new();
                     keyword.push(char);
-                    while let Some(&char) = char_iter.peek() {
+                    while let Some(&char) = iter.peek() {
                         if char.is_alphanumeric() {
                             keyword.push(char);
-                            char_iter.next();
+                            iter.next();
                         } else {
                             break;
                         }

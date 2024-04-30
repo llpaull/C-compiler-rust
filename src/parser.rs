@@ -11,6 +11,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
                         Some(Token::Identifier(name)) => name,
                         _ => return Err("Expected function name"),
                     };
+
                     match iter.next() {
                         Some(Token::LParen) => {},
                         _ => return Err("Expected left parenthesis"),
@@ -23,13 +24,21 @@ pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
                         Some(Token::LBrace) => {},
                         _ => return Err("Expected left brace"),
                     }
+
                     let mut statements: Vec<Statement> = Vec::new();
-                    let statement = parse_statement(&mut iter)?;
-                    statements.push(statement);
+
+                    while let Some(exp) = iter.peek() {
+                        match exp {
+                            Token::RBrace => break,
+                            _ => statements.push(parse_statement(&mut iter)?),
+                        }
+                    }
+
                     match iter.next() {
                         Some(Token::RBrace) => {},
                         _ => return Err("Expected right brace"),
                     }
+
                     let mut funcs: Vec<FunDecl> = Vec::new();
                     let func = FunDecl {name: name.to_string(), body: statements};
                     funcs.push(func);
@@ -43,28 +52,81 @@ pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
 }
 
 fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Statement, &'static str> {
-    match iter.next() {
+    let ret = match iter.peek() {
         Some(Token::Keyword(kw)) if kw == "return" => {
+            iter.next();
             let exp = parse_expression(iter)?;
-            match iter.next() {
-                Some(Token::Semicolon) => Ok(Statement::Return(exp)),
-                _ => Err("expected semicolon at end of statement"),
+            Statement::Return(exp)
+        },
+        Some(Token::Keyword(kw)) if kw == "int" => {
+            iter.next();
+            let name = match iter.next() {
+                Some(Token::Identifier(name)) => name,
+                _ => return Err("Expected identifier"),
+            };
+            match iter.peek() {
+                Some(Token::Semicolon) => Statement::Declaration(name.to_string(), None),
+                Some(Token::Operator("=")) => {
+                    iter.next();
+                    Statement::Declaration(name.to_string(), Some(parse_expression(iter)?))
+                },
+                _ => return Err("Unexpected token when declaring variable"),
             }
         },
-        _ => Err("Expected return statement"),
+        Some(_) => Statement::Expression(parse_expression(iter)?),
+        None => return Err("ran out of tokens while parsing statement"),
+    };
+
+    match iter.next() {
+        Some(Token::Semicolon) => {},
+        _ => return Err("Expected semicolon at end of statement"),
     }
+
+    Ok(ret)
 }
 
 fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp, &'static str> {
-    let mut ret = Exp::LogicAnd(parse_logic_and_exp(iter)?); 
+    match iter.peek() {
+        Some(Token::Identifier(name)) => {
+            let var = parse_logic_or_exp(iter)?;
+            match iter.peek() {
+                Some(Token::Semicolon) => Ok(Exp::LogicOr(var)),
+                Some(Token::Operator(op)) => {
+                    iter.next();
+                    let new_op = match *op {
+                        "=" => AssignmentOp::Assignment,
+                        "*=" => AssignmentOp::Mult,
+                        "/=" => AssignmentOp::Div,
+                        "%=" => AssignmentOp::Mod,
+                        "+=" => AssignmentOp::Plus,
+                        "-=" => AssignmentOp::Sub,
+                        "<<=" => AssignmentOp::LShift,
+                        ">>=" => AssignmentOp::RShift,
+                        "&=" => AssignmentOp::BitAnd,
+                        "^=" => AssignmentOp::BitXor,
+                        "|=" => AssignmentOp::BitOr,
+                        _ => return Err("Expected assignment operator"),
+                    };
+                    Ok(Exp::Operator(new_op, name.to_string(), Box::new(parse_expression(iter)?)))
+                },
+                _ => Err("Expected operator or semicolon"),
+            }
+        },
+        Some(_) => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
+        None => Err("ran out of tokens while parsing expression"),
+    }
+}
+
+fn parse_logic_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<LogicOrExp, &'static str> {
+    let mut ret = LogicOrExp::LogicAnd(parse_logic_and_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
             Token::Operator(op) => match *op {
                 "||" => {
                     iter.next();
                     let new_op = LogicOrOp::LogicOr;
-                    let next = Exp::LogicAnd(parse_logic_and_exp(iter)?);
-                    ret = Exp::Operator(new_op, Box::new(ret), Box::new(next));
+                    let next = LogicOrExp::LogicAnd(parse_logic_and_exp(iter)?);
+                    ret = LogicOrExp::Operator(new_op, Box::new(ret), Box::new(next));
                 }
                 _ => break,
             }
@@ -292,6 +354,7 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
                 _ => Err("Expected right parenthesis"),
             }
         },
+        Some(Token::Identifier(name)) => Ok(Factor::Variable(name.to_string())),
         _ => Err("Expected factor"),
     }
 }
@@ -305,12 +368,20 @@ pub struct FunDecl {pub name: String, pub body: Vec<Statement>}
 #[derive(Debug)]
 pub enum Statement {
     Return(Exp),
+    Declaration(String, Option<Exp>),
+    Expression(Exp),
 }
 
 #[derive(Debug)]
 pub enum Exp {
+    LogicOr(LogicOrExp),
+    Operator(AssignmentOp, String, Box<Exp>),
+}
+
+#[derive(Debug)]
+pub enum LogicOrExp {
     LogicAnd(LogicAndExp),
-    Operator(LogicOrOp, Box<Exp>, Box<Exp>),
+    Operator(LogicOrOp, Box<LogicOrExp>, Box<LogicOrExp>),
 }
 
 #[derive(Debug)]
@@ -370,6 +441,7 @@ pub enum Term {
 #[derive(Debug)]
 pub enum Factor {
     Integer(i64),
+    Variable(String),
     Operator(FactorOp, Box<Factor>),
     Paren(Box<Exp>),
 }
@@ -437,4 +509,19 @@ pub enum LogicAndOp {
 #[derive(Debug)]
 pub enum LogicOrOp {
     LogicOr,
+}
+
+#[derive(Debug)]
+pub enum AssignmentOp {
+    Assignment,
+    Mult,
+    Div,
+    Mod,
+    Plus,
+    Sub,
+    LShift,
+    RShift,
+    BitAnd,
+    BitOr,
+    BitXor,
 }

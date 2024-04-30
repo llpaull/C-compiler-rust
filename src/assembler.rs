@@ -12,6 +12,11 @@ pub fn assemble(ast: &parser::Program) -> String {
                     assemble_exp(exp, &mut res);
                     res.push_str("ret\n");
                 },
+                Statement::Expression(exp) => {
+                    assemble_exp(exp, &mut res);
+                },
+                Statement::Declaration(name, exp) => {
+                },
             }
         }
     }
@@ -20,9 +25,18 @@ pub fn assemble(ast: &parser::Program) -> String {
 
 fn assemble_exp(exp: &parser::Exp, res: &mut String) {
     match exp {
-        parser::Exp::LogicAnd(logic_and) => assemble_logic_and(logic_and, res),
+        parser::Exp::LogicOr(logic_or) => assemble_logic_or(logic_or, res),
         parser::Exp::Operator(_op, l, r) => {
-            assemble_exp(l, res);
+            todo!()
+        },
+    }
+}
+
+fn assemble_logic_or(logic_or: &parser::LogicOrExp, res: &mut String) {
+    match logic_or {
+        parser::LogicOrExp::LogicAnd(logic_and) => assemble_logic_and(logic_and, res),
+        parser::LogicOrExp::Operator(_op, l, r) => {
+            assemble_logic_or(l, res);
             res.push_str("cmpq $0, %rax\n");
             let id = unique_id();
             res.push_str(&format!("je _{}\n", id));
@@ -30,7 +44,7 @@ fn assemble_exp(exp: &parser::Exp, res: &mut String) {
             let end = unique_id();
             res.push_str(&format!("jmp _{}\n", end));
             res.push_str(&format!("_{}:\n", id));
-            assemble_exp(r, res);
+            assemble_logic_or(r, res);
             res.push_str("cmpq $0, %rax\n");
             res.push_str("movq $0, %rax\n");
             res.push_str("setne %al\n");
@@ -221,6 +235,7 @@ fn assemble_factor(factor: &parser::Factor, res: &mut String) {
                 },
             }
         },
+        parser::Factor::Variable(name) => todo!(),
     }
 }
 
