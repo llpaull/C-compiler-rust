@@ -90,22 +90,18 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
     match iter.peek() {
         Some(Token::Identifier(name)) => {
             let mut clone = iter.clone();
-            iter.next();
-            match iter.peek() {
-                Some(Token::Semicolon) => Ok(Exp::LogicOr(parse_logic_or_exp(&mut clone)?)),
-                Some(Token::Operator(op)) => {
+            clone.next();
+
+            match clone.peek() {
+                Some(Token::Operator(Operation::Assign)) => {
                     iter.next();
-                    let new_op = match op {
-                        Operation::Assign => AssignmentOp::Assignment,
-                        _ => return Err("Expected assignment operator"),
-                    };
-                    Ok(Exp::Operator(new_op, name.to_string(), Box::new(parse_expression(iter)?)))
+                    iter.next();
+                    Ok(Exp::Operator(AssignmentOp::Assignment, name.to_string(), Box::new(parse_expression(iter)?)))
                 },
-                _ => Err("Expected operator or semicolon"),
+                _ => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
             }
         },
-        Some(_) => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
-        None => Err("ran out of tokens while parsing expression"),
+        _ => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
     }
 }
 
