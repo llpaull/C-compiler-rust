@@ -89,9 +89,10 @@ fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<State
 fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp, &'static str> {
     match iter.peek() {
         Some(Token::Identifier(name)) => {
-            let var = parse_logic_or_exp(iter)?;
+            let mut clone = iter.clone();
+            iter.next();
             match iter.peek() {
-                Some(Token::Semicolon) => Ok(Exp::LogicOr(var)),
+                Some(Token::Semicolon) => Ok(Exp::LogicOr(parse_logic_or_exp(&mut clone)?)),
                 Some(Token::Operator(op)) => {
                     iter.next();
                     let new_op = match op {
