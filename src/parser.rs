@@ -502,6 +502,7 @@ pub enum LogicOrOp {
     LogicOr,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum AssignmentOp {
     Assignment,
