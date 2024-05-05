@@ -52,10 +52,22 @@ fn assemble_statement(statement: &parser::Statement, stack: &mut StackFrame, res
 fn assemble_exp(exp: &parser::Exp, stack: &mut StackFrame, res: &mut String) {
     match exp {
         parser::Exp::LogicOr(logic_or) => assemble_logic_or(logic_or, stack, res),
-        parser::Exp::Operator(_op, name, val) => {
+        parser::Exp::Operator(op, name, val) => {
             assemble_exp(val, stack, res);
             let offset = stack.get_var(name);
-            res.push_str(&format!("movq %rax, {}(%rbp)\n", offset));
+            match op {
+                parser::AssignmentOp::Assign => res.push_str(&format!("movq %rax, {}(%rbp)\n", offset)),
+                parser::AssignmentOp::Plus => res.push_str(&format!("addq %rax, {}(%rbp)\n", offset)),
+                parser::AssignmentOp::Sub => res.push_str(&format!("subq %rax, {}(%rbp)\n", offset)),
+                parser::AssignmentOp::Mult => todo!(),
+                parser::AssignmentOp::Div => todo!(),
+                parser::AssignmentOp::Mod => todo!(),
+                parser::AssignmentOp::BitOr => todo!(),
+                parser::AssignmentOp::BitAnd => todo!(),
+                parser::AssignmentOp::BitXor => todo!(),
+                parser::AssignmentOp::LShift => todo!(),
+                parser::AssignmentOp::RShift => todo!(),
+            }
         }
     }
 }

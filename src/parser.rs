@@ -93,10 +93,36 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
             clone.next();
 
             match clone.peek() {
-                Some(Token::Operator(Operation::Assign)) => {
+                Some
+                (
+                    Token::Operator(Operation::Assign) | 
+                    Token::Operator(Operation::PlusAssign) |
+                    Token::Operator(Operation::MinusAssign) |
+                    Token::Operator(Operation::MultAssign) |
+                    Token::Operator(Operation::DivAssign) |
+                    Token::Operator(Operation::ModAssign) |
+                    Token::Operator(Operation::LeftShiftAssign) |
+                    Token::Operator(Operation::RightShiftAssign) |
+                    Token::Operator(Operation::BitAndAssign) |
+                    Token::Operator(Operation::BitOrAssign) |
+                    Token::Operator(Operation::BitXorAssign)
+                ) => {
                     iter.next();
-                    iter.next();
-                    Ok(Exp::Operator(AssignmentOp::Assignment, name.to_string(), Box::new(parse_expression(iter)?)))
+                    let op = match iter.next() {
+                        Some(Token::Operator(Operation::Assign)) => AssignmentOp::Assign,
+                        Some(Token::Operator(Operation::PlusAssign)) => AssignmentOp::Plus,
+                        Some(Token::Operator(Operation::MinusAssign)) => AssignmentOp::Sub,
+                        Some(Token::Operator(Operation::MultAssign)) => AssignmentOp::Mult,
+                        Some(Token::Operator(Operation::DivAssign)) => AssignmentOp::Div,
+                        Some(Token::Operator(Operation::ModAssign)) => AssignmentOp::Mod,
+                        Some(Token::Operator(Operation::LeftShiftAssign)) => AssignmentOp::LShift,
+                        Some(Token::Operator(Operation::RightShiftAssign)) => AssignmentOp::RShift,
+                        Some(Token::Operator(Operation::BitAndAssign)) => AssignmentOp::BitAnd,
+                        Some(Token::Operator(Operation::BitOrAssign)) => AssignmentOp::BitOr,
+                        Some(Token::Operator(Operation::BitXorAssign)) => AssignmentOp::BitXor,
+                        _ => return Err("Somehow got assignment but also not"),
+                    };
+                    Ok(Exp::Operator(op, name.to_string(), Box::new(parse_expression(iter)?)))
                 },
                 _ => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
             }
@@ -499,10 +525,9 @@ pub enum LogicOrOp {
     LogicOr,
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub enum AssignmentOp {
-    Assignment,
+    Assign,
     Mult,
     Div,
     Mod,

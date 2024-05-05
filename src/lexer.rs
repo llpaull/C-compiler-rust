@@ -18,12 +18,20 @@ pub fn lex(s: &str) -> Vec<Token> {
                     iter.next();
                     tokens.push(Token::Operator(Operation::MinusAssign));
                 },
+                Some('-') => {
+                    iter.next();
+                    tokens.push(Token::Operator(Operation::Decrement));
+                },
                 _ => tokens.push(Token::Operator(Operation::Minus)),
             },
             '+' => match iter.peek() {
                 Some('=') => {
                     iter.next();
                     tokens.push(Token::Operator(Operation::PlusAssign));
+                },
+                Some('+') => {
+                    iter.next();
+                    tokens.push(Token::Operator(Operation::Increment));
                 },
                 _ => tokens.push(Token::Operator(Operation::Plus)),
             },
@@ -202,7 +210,9 @@ pub enum Operation {
     LogicalOr,
     Assign,
     PlusAssign,
+    Increment,
     MinusAssign,
+    Decrement,
     MultAssign,
     DivAssign,
     ModAssign,
