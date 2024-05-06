@@ -285,15 +285,37 @@ fn assemble_factor(factor: &parser::Factor, stack: &mut StackFrame, res: &mut St
         parser::Factor::Integer(i) => res.push_str(&format!("mov ${}, %rax\n", i)),
         parser::Factor::Paren(exp) => assemble_exp(exp, stack, res),
         parser::Factor::Operator(op, exp) => {
-            assemble_factor(exp, stack, res);
             match op {
-                parser::FactorOp::Negate => res.push_str("neg %rax\n"),
-                parser::FactorOp::BitNot => res.push_str("not %rax\n"),
+                parser::FactorOp::Negate => {
+                    assemble_factor(exp, stack, res);
+                    res.push_str("neg %rax\n");
+                },
+                parser::FactorOp::BitNot => {
+                    assemble_factor(exp, stack, res);
+                    res.push_str("not %rax\n")
+                },
                 parser::FactorOp::LogicalNot => {
+                    assemble_factor(exp, stack, res);
                     res.push_str("cmp $0, %rax\n");
                     res.push_str("mov $0, %rax\n");
                     res.push_str("sete %al\n");
+                },
+                parser::FactorOp::Inc => {
+                    let offset = match **exp {
+                        parser::Factor::Variable(ref name) => stack.get_var(name),
+                        _ => panic!("Invalid increment"),
+                    };
+                    res.push_str(&format!("inc {}(%rbp)\n", offset));
+                    assemble_factor(exp, stack, res);
                 }
+                parser::FactorOp::Dec => {
+                    let offset = match **exp {
+                        parser::Factor::Variable(ref name) => stack.get_var(name),
+                        _ => panic!("Invalid decrement"),
+                    };
+                    res.push_str(&format!("dec {}(%rbp)\n", offset));
+                    assemble_factor(exp, stack, res);
+                },
             }
         }
         parser::Factor::Variable(name) => {

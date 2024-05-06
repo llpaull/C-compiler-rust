@@ -93,8 +93,6 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
 
             match clone.peek() {
                 Some(Token::Operator(Operation::Assignment(op_token))) => {
-                    iter.next();
-                    iter.next();
                     let op = match op_token {
                         lexer::AssignmentOp::Assign => AssignmentOp::Assign,
                         lexer::AssignmentOp::Mult => AssignmentOp::Mult,
@@ -109,6 +107,8 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
                         lexer::AssignmentOp::BitXor => AssignmentOp::BitXor,
                         _ => todo!(),
                     };
+                    iter.next();
+                    iter.next();
                     Ok(Exp::Operator(op, name.to_string(), Box::new(parse_expression(iter)?)))
                 },
                 _ => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
@@ -284,6 +284,20 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
             let factor = parse_factor(iter)?;
             Ok(Factor::Operator(op, Box::new(factor)))
         },
+        Some(Token::Operator(Operation::Assignment(op))) => {
+            let op = match op {
+                lexer::AssignmentOp::Increment => FactorOp::Inc,
+                lexer::AssignmentOp::Decrement => FactorOp::Dec,
+                _ => return Err("Expected unary operator"),
+            };
+            let factor = parse_factor(iter)?;
+            match factor {
+                Factor::Variable(_) => {},
+                _ => return Err("cannot increment non-variable"),
+            }
+            // prefix increment/decrement
+            Ok(Factor::Operator(op, Box::new(factor)))
+        },
         Some(Token::LParen) => {
             let exp = parse_expression(iter)?;
             match iter.next() {
@@ -388,6 +402,8 @@ pub enum FactorOp {
     Negate,
     LogicalNot,
     BitNot,
+    Inc,
+    Dec,
 }
 
 #[derive(Debug)]
