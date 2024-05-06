@@ -77,9 +77,9 @@ fn assemble_exp(exp: &parser::Exp, stack: &mut StackFrame, res: &mut String) {
                     res.push_str("idiv %rcx\n");
                     res.push_str(&format!("mov %rdx, {}(%rbp)\n", offset));
                },
-                parser::AssignmentOp::BitOr => todo!(),
-                parser::AssignmentOp::BitAnd => todo!(),
-                parser::AssignmentOp::BitXor => todo!(),
+                parser::AssignmentOp::BitOr => res.push_str(&format!("or %rax, {}(%rbp)\n", offset)),
+                parser::AssignmentOp::BitAnd => res.push_str(&format!("and %rax, {}(%rbp)\n", offset)),
+                parser::AssignmentOp::BitXor => res.push_str(&format!("xor %rax, {}(%rbp)\n", offset)),
                 parser::AssignmentOp::LShift => todo!(),
                 parser::AssignmentOp::RShift => todo!(),
             }
