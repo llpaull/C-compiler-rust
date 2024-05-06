@@ -79,13 +79,28 @@ fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<State
 
     match iter.next() {
         Some(Token::Semicolon) => {},
-        _ => return Err("Expected semicolon at end of statement"),
+        _ => return Err("unknown token at end of statement"),
     }
 
     Ok(ret)
 }
 
 fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp, &'static str> {
+    let mut ret = Exp::Assignment(parse_assignment_expression(iter)?);
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::Comma => {
+                iter.next();
+                let next = Exp::Assignment(parse_assignment_expression(iter)?);
+                ret = Exp::Operator(CommaOp::Comma, Box::new(ret), Box::new(next));
+            },
+            _ => break,
+        }
+    }
+    Ok(ret)
+}
+
+fn parse_assignment_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<AssignmentExp, &'static str> {
     match iter.peek() {
         Some(Token::Identifier(name)) => {
             let mut clone = iter.clone();
@@ -110,21 +125,21 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
                     };
                     match op {
                         AssignmentOp::PostInc | AssignmentOp::PostDec => {
-                            let var = Exp::LogicOr(parse_logic_or_exp(iter)?); // should only take one (1) token
+                            let var = AssignmentExp::LogicOr(parse_logic_or_exp(iter)?); // should only take one (1) token
                             iter.next();
-                            Ok(Exp::Operator(op, name.to_string(), Box::new(var)))
+                            Ok(AssignmentExp::Operator(op, name.to_string(), Box::new(var)))
                         },
                         _ => {
                             iter.next();
                             iter.next();
-                            Ok(Exp::Operator(op, name.to_string(), Box::new(parse_expression(iter)?)))
+                            Ok(AssignmentExp::Operator(op, name.to_string(), Box::new(parse_assignment_expression(iter)?)))
                         },
                     }
                 },
-                _ => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
+                _ => Ok(AssignmentExp::LogicOr(parse_logic_or_exp(iter)?)),
             }
         },
-        _ => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
+        _ => Ok(AssignmentExp::LogicOr(parse_logic_or_exp(iter)?)),
     }
 }
 
@@ -335,8 +350,14 @@ pub enum Statement {
 
 #[derive(Debug)]
 pub enum Exp {
+    Assignment(AssignmentExp),
+    Operator(CommaOp, Box<Exp>, Box<Exp>),
+}
+
+#[derive(Debug)]
+pub enum AssignmentExp {
     LogicOr(LogicOrExp),
-    Operator(AssignmentOp, String, Box<Exp>),
+    Operator(AssignmentOp, String, Box<AssignmentExp>),
 }
 
 #[derive(Debug)]
@@ -489,4 +510,9 @@ pub enum AssignmentOp {
     BitAnd,
     BitOr,
     BitXor,
+}
+
+#[derive(Debug)]
+pub enum CommaOp {
+    Comma,
 }

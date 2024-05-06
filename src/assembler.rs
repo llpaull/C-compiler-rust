@@ -51,9 +51,19 @@ fn assemble_statement(statement: &parser::Statement, stack: &mut StackFrame, res
 
 fn assemble_exp(exp: &parser::Exp, stack: &mut StackFrame, res: &mut String) {
     match exp {
-        parser::Exp::LogicOr(logic_or) => assemble_logic_or(logic_or, stack, res),
-        parser::Exp::Operator(op, name, val) => {
-            assemble_exp(val, stack, res);
+        parser::Exp::Assignment(assignment) => assemble_assignment(assignment, stack, res),
+        parser::Exp::Operator(_op, l, r) => {
+            assemble_exp(l, stack, res);
+            assemble_exp(r, stack, res);
+        },
+    }
+}
+
+fn assemble_assignment(assignment: &parser::AssignmentExp, stack: &mut StackFrame, res: &mut String) {
+    match assignment {
+        parser::AssignmentExp::LogicOr(logic_or) => assemble_logic_or(logic_or, stack, res),
+        parser::AssignmentExp::Operator(op, name, val) => {
+            assemble_assignment(val, stack, res);
             let offset = stack.get_var(name);
             match op {
                 parser::AssignmentOp::Assign => res.push_str(&format!("mov %rax, {}(%rbp)\n", offset)),
