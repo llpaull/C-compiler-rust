@@ -12,126 +12,127 @@ pub fn lex(s: &str) -> Vec<Token> {
             '[' => tokens.push(Token::LBracket),
             ']' => tokens.push(Token::RBracket),
             ';' => tokens.push(Token::Semicolon),
-            '~' => tokens.push(Token::Operator(Operation::BitNot)),
+            ',' => tokens.push(Token::Comma),
+            '~' => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitNot))),
             '-' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::MinusAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Minus)));
                 },
                 Some('-') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::Decrement));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Decrement)));
                 },
-                _ => tokens.push(Token::Operator(Operation::Minus)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Minus))),
             },
             '+' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::PlusAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Plus)));
                 },
                 Some('+') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::Increment));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Increment)));
                 },
-                _ => tokens.push(Token::Operator(Operation::Plus)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Plus))),
             },
             '*' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::MultAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Mult)));
                 },
-                _ => tokens.push(Token::Operator(Operation::Mult)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Mult))),
             },
             '/' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::DivAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Div)));
                 },
-                _ => tokens.push(Token::Operator(Operation::Div)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Div))),
             },
             '!' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::NotEqual));
+                    tokens.push(Token::Operator(Operation::Basic(BasicOp::NotEqual)));
                 },
-                _ => tokens.push(Token::Operator(Operation::LogicalNot)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::LogicalNot))),
             },
             '<' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::LessThanOrEqual));
+                    tokens.push(Token::Operator(Operation::Basic(BasicOp::LessEqual)));
                 },
                 Some('<') => {
                     iter.next();
                     match iter.peek() {
                         Some('=') => {
                             iter.next();
-                            tokens.push(Token::Operator(Operation::LeftShiftAssign));
+                            tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::LShift)));
                         },
-                        _ => tokens.push(Token::Operator(Operation::LeftShift)),
+                        _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::LShift))),
                     }
                 },
-                _ => tokens.push(Token::Operator(Operation::LessThan)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::LessThan))),
             },
             '>' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::GreaterThanOrEqual));
+                    tokens.push(Token::Operator(Operation::Basic(BasicOp::GreaterEqual)));
                 },
                 Some('>') => {
                     iter.next();
                     match iter.peek() {
                         Some('=') => {
                             iter.next();
-                            tokens.push(Token::Operator(Operation::RightShiftAssign));
+                            tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::RShift)));
                         },
-                        _ => tokens.push(Token::Operator(Operation::RightShift)),
+                        _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::RShift))),
                     }
                 },
-                _ => tokens.push(Token::Operator(Operation::GreaterThan)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::GreaterThan))),
             },
             '&' => match iter.peek() {
                 Some('&') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::LogicalAnd));
+                    tokens.push(Token::Operator(Operation::Basic(BasicOp::LogicalAnd)));
                 },
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::BitAndAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::BitAnd)));
                 },
-                _ => tokens.push(Token::Operator(Operation::BitAnd)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitAnd))),
             },
             '|' => match iter.peek() {
                 Some('|') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::LogicalOr));
+                    tokens.push(Token::Operator(Operation::Basic(BasicOp::LogicalOr)));
                 },
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::BitOrAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::BitOr)));
                 },
-                _ => tokens.push(Token::Operator(Operation::BitOr)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitOr))),
             },
             '%' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::ModAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Mod)));
                 },
-                _ => tokens.push(Token::Operator(Operation::Mod)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Mod))),
             },
             '^' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::BitXorAssign));
+                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::BitXor)));
                 },
-                _ => tokens.push(Token::Operator(Operation::BitXor)),
+                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitXor))),
             },
             '=' => match iter.peek() {
                 Some('=') => {
                     iter.next();
-                    tokens.push(Token::Operator(Operation::Equal));
+                    tokens.push(Token::Operator(Operation::Basic(BasicOp::Equal)));
                 },
-                _ => tokens.push(Token::Operator(Operation::Assign)),
+                _ => tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Assign))),
             },
             ' ' | '\n' | '\r' | '\t' => {},
             _ => {
@@ -180,6 +181,7 @@ pub enum Token {
     LBracket,
     RBracket,
     Semicolon,
+    Comma,
     Keyword(String),
     Identifier(String),
     Integer(i64),
@@ -188,6 +190,12 @@ pub enum Token {
 
 #[derive(Debug)]
 pub enum Operation {
+    Basic(BasicOp),
+    Assignment(AssignmentOp),
+}
+
+#[derive(Debug)]
+pub enum BasicOp {
     BitNot,
     LogicalNot,
     Plus,
@@ -198,27 +206,31 @@ pub enum Operation {
     BitAnd,
     BitOr,
     BitXor,
-    LeftShift,
-    RightShift,
+    LShift,
+    RShift,
     Equal,
     NotEqual,
     LessThan,
-    LessThanOrEqual,
+    LessEqual,
     GreaterThan,
-    GreaterThanOrEqual,
+    GreaterEqual,
     LogicalAnd,
     LogicalOr,
+}
+
+#[derive(Debug)]
+pub enum AssignmentOp {
     Assign,
-    PlusAssign,
+    Plus,
     Increment,
-    MinusAssign,
+    Minus,
     Decrement,
-    MultAssign,
-    DivAssign,
-    ModAssign,
-    BitAndAssign,
-    BitOrAssign,
-    BitXorAssign,
-    LeftShiftAssign,
-    RightShiftAssign,
+    Mult,
+    Div,
+    Mod,
+    BitAnd,
+    BitOr,
+    BitXor,
+    LShift,
+    RShift,
 }
