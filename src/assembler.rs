@@ -80,8 +80,14 @@ fn assemble_exp(exp: &parser::Exp, stack: &mut StackFrame, res: &mut String) {
                 parser::AssignmentOp::BitOr => res.push_str(&format!("or %rax, {}(%rbp)\n", offset)),
                 parser::AssignmentOp::BitAnd => res.push_str(&format!("and %rax, {}(%rbp)\n", offset)),
                 parser::AssignmentOp::BitXor => res.push_str(&format!("xor %rax, {}(%rbp)\n", offset)),
-                parser::AssignmentOp::LShift => todo!(),
-                parser::AssignmentOp::RShift => todo!(),
+                parser::AssignmentOp::LShift => {
+                    res.push_str("mov %rax, %rcx\n");
+                    res.push_str(&format!("sal %rcx, {}(%rbp)\n", offset));
+                },
+                parser::AssignmentOp::RShift => {
+                    res.push_str("mov %rax, %rcx\n");
+                    res.push_str(&format!("sar %rcx, {}(%rbp)\n", offset));
+                },
             }
         }
     }
