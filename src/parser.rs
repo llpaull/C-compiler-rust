@@ -1,5 +1,5 @@
 use std::iter::Peekable;
-use crate::lexer::{self, Token, Operation};
+use crate::lexer::{self, Token, Operation, BasicOp};
 
 pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
     let mut iter = tokens.iter().peekable();
@@ -122,7 +122,7 @@ fn parse_logic_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Lo
     let mut ret = LogicOrExp::LogicAnd(parse_logic_and_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::LogicalOr)) => {
+            Token::Operator(Operation::Basic(BasicOp::LogicalOr)) => {
                 iter.next();
                 let next = LogicOrExp::LogicAnd(parse_logic_and_exp(iter)?);
                 ret = LogicOrExp::Operator(LogicOrOp::LogicOr, Box::new(ret), Box::new(next));
@@ -137,7 +137,7 @@ fn parse_logic_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<L
     let mut ret = LogicAndExp::BitOr(parse_bit_or_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::LogicalAnd)) => {
+            Token::Operator(Operation::Basic(BasicOp::LogicalAnd)) => {
                 iter.next();
                 let next = LogicAndExp::BitOr(parse_bit_or_exp(iter)?);
                 ret = LogicAndExp::Operator(LogicAndOp::LogicAnd, Box::new(ret), Box::new(next));
@@ -152,7 +152,7 @@ fn parse_bit_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitO
     let mut ret = BitOrExp::BitXor(parse_bit_xor_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::BitOr)) => {
+            Token::Operator(Operation::Basic(BasicOp::BitOr)) => {
                 iter.next();
                 let next = BitOrExp::BitXor(parse_bit_xor_exp(iter)?);
                 ret = BitOrExp::Operator(BitOrOp::BitOr, Box::new(ret), Box::new(next));
@@ -167,7 +167,7 @@ fn parse_bit_xor_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Bit
     let mut ret = BitXorExp::BitAnd(parse_bit_and_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::BitXor)) => {
+            Token::Operator(Operation::Basic(BasicOp::BitXor)) => {
                 iter.next();
                 let next = BitXorExp::BitAnd(parse_bit_and_exp(iter)?);
                 ret = BitXorExp::Operator(BitXorOp::BitXor, Box::new(ret), Box::new(next));
@@ -182,7 +182,7 @@ fn parse_bit_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Bit
     let mut ret = BitAndExp::Equality(parse_equality_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::BitAnd)) => {
+            Token::Operator(Operation::Basic(BasicOp::BitAnd)) => {
                 iter.next();
                 let next = BitAndExp::Equality(parse_equality_exp(iter)?);
                 ret = BitAndExp::Operator(BitAndOp::BitAnd, Box::new(ret), Box::new(next));
@@ -197,12 +197,12 @@ fn parse_equality_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Eq
     let mut ret = EqualityExp::Rel(parse_rel_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::Equal)) => {
+            Token::Operator(Operation::Basic(BasicOp::Equal)) => {
                 iter.next();
                 let next = EqualityExp::Rel(parse_rel_exp(iter)?);
                 ret = EqualityExp::Operator(EqualityOp::Equals, Box::new(ret), Box::new(next));
             },
-            Token::Operator(Operation::Basic(lexer::BasicOp::NotEqual)) => {
+            Token::Operator(Operation::Basic(BasicOp::NotEqual)) => {
                 iter.next();
                 let next = EqualityExp::Rel(parse_rel_exp(iter)?);
                 ret = EqualityExp::Operator(EqualityOp::NotEquals, Box::new(ret), Box::new(next));
@@ -217,22 +217,22 @@ fn parse_rel_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<RelExp,
     let mut ret = RelExp::Shift(parse_shift_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::LessThan)) => {
+            Token::Operator(Operation::Basic(BasicOp::LessThan)) => {
                 iter.next();
                 let next = RelExp::Shift(parse_shift_exp(iter)?);
                 ret = RelExp::Operator(RelationOp::LessThan, Box::new(ret), Box::new(next));
             }
-            Token::Operator(Operation::Basic(lexer::BasicOp::LessEqual)) => {
+            Token::Operator(Operation::Basic(BasicOp::LessEqual)) => {
                 iter.next();
                 let next = RelExp::Shift(parse_shift_exp(iter)?);
                 ret = RelExp::Operator(RelationOp::LessEqual, Box::new(ret), Box::new(next));
             }
-            Token::Operator(Operation::Basic(lexer::BasicOp::GreaterThan)) => {
+            Token::Operator(Operation::Basic(BasicOp::GreaterThan)) => {
                 iter.next();
                 let next = RelExp::Shift(parse_shift_exp(iter)?);
                 ret = RelExp::Operator(RelationOp::GreaterThan, Box::new(ret), Box::new(next));
             }
-            Token::Operator(Operation::Basic(lexer::BasicOp::GreaterEqual)) => {
+            Token::Operator(Operation::Basic(BasicOp::GreaterEqual)) => {
                 iter.next();
                 let next = RelExp::Shift(parse_shift_exp(iter)?);
                 ret = RelExp::Operator(RelationOp::GreaterEqual, Box::new(ret), Box::new(next));
@@ -247,12 +247,12 @@ fn parse_shift_exp(iter : &mut Peekable<std::slice::Iter<Token>>) -> Result<Shif
     let mut ret = ShiftExp::Additive(parse_additive_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::LShift)) => {
+            Token::Operator(Operation::Basic(BasicOp::LShift)) => {
                 iter.next();
                 let next = ShiftExp::Additive(parse_additive_exp(iter)?);
                 ret = ShiftExp::Operator(ShiftOp::LShift, Box::new(ret), Box::new(next));
             },
-            Token::Operator(Operation::Basic(lexer::BasicOp::RShift)) => {
+            Token::Operator(Operation::Basic(BasicOp::RShift)) => {
                 iter.next();
                 let next = ShiftExp::Additive(parse_additive_exp(iter)?);
                 ret = ShiftExp::Operator(ShiftOp::RShift, Box::new(ret), Box::new(next));
@@ -267,12 +267,12 @@ fn parse_additive_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Ad
     let mut ret = AdditiveExp::Term(parse_term(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::Plus)) => {
+            Token::Operator(Operation::Basic(BasicOp::Plus)) => {
                 iter.next();
                 let next = AdditiveExp::Term(parse_term(iter)?);
                 ret = AdditiveExp::Operator(AdditiveOp::Add, Box::new(ret), Box::new(next));
             },
-            Token::Operator(Operation::Basic(lexer::BasicOp::Minus)) => {
+            Token::Operator(Operation::Basic(BasicOp::Minus)) => {
                 iter.next();
                 let next = AdditiveExp::Term(parse_term(iter)?);
                 ret = AdditiveExp::Operator(AdditiveOp::Sub, Box::new(ret), Box::new(next));
@@ -287,17 +287,17 @@ fn parse_term(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Term, &'st
     let mut ret = Term::Factor(parse_factor(iter)?);
     while let Some(token) = iter.peek() {
         match token {
-            Token::Operator(Operation::Basic(lexer::BasicOp::Mult)) => {
+            Token::Operator(Operation::Basic(BasicOp::Mult)) => {
                 iter.next();
                 let next = Term::Factor(parse_factor(iter)?);
                 ret = Term::Operator(TermOp::Mult, Box::new(ret), Box::new(next));
             },
-            Token::Operator(Operation::Basic(lexer::BasicOp::Div)) => {
+            Token::Operator(Operation::Basic(BasicOp::Div)) => {
                 iter.next();
                 let next = Term::Factor(parse_factor(iter)?);
                 ret = Term::Operator(TermOp::Div, Box::new(ret), Box::new(next));
             },
-            Token::Operator(Operation::Basic(lexer::BasicOp::Mod)) => {
+            Token::Operator(Operation::Basic(BasicOp::Mod)) => {
                 iter.next();
                 let next = Term::Factor(parse_factor(iter)?);
                 ret = Term::Operator(TermOp::Mod, Box::new(ret), Box::new(next));
@@ -313,15 +313,15 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
         Some(Token::Integer(i)) => Ok(Factor::Integer(*i)),
         Some(Token::Operator(Operation::Basic(op))) => {
             match op {
-                lexer::BasicOp::Minus => {
+                BasicOp::Minus => {
                     let factor = parse_factor(iter)?;
                     Ok(Factor::Operator(FactorOp::Negate, Box::new(factor)))
                 },
-                lexer::BasicOp::LogicalNot => {
+                BasicOp::LogicalNot => {
                     let factor = parse_factor(iter)?;
                     Ok(Factor::Operator(FactorOp::LogicalNot, Box::new(factor)))
                 },
-                lexer::BasicOp::BitNot => {
+                BasicOp::BitNot => {
                     let factor = parse_factor(iter)?;
                     Ok(Factor::Operator(FactorOp::BitNot, Box::new(factor)))
                 },
