@@ -105,11 +105,21 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
                         lexer::AssignmentOp::BitAnd => AssignmentOp::BitAnd,
                         lexer::AssignmentOp::BitOr => AssignmentOp::BitOr,
                         lexer::AssignmentOp::BitXor => AssignmentOp::BitXor,
-                        _ => todo!(),
+                        lexer::AssignmentOp::Increment => AssignmentOp::PostInc,
+                        lexer::AssignmentOp::Decrement => AssignmentOp::PostDec,
                     };
-                    iter.next();
-                    iter.next();
-                    Ok(Exp::Operator(op, name.to_string(), Box::new(parse_expression(iter)?)))
+                    match op {
+                        AssignmentOp::PostInc | AssignmentOp::PostDec => {
+                            let var = Exp::LogicOr(parse_logic_or_exp(iter)?); // should only take one (1) token
+                            iter.next();
+                            Ok(Exp::Operator(op, name.to_string(), Box::new(var)))
+                        },
+                        _ => {
+                            iter.next();
+                            iter.next();
+                            Ok(Exp::Operator(op, name.to_string(), Box::new(parse_expression(iter)?)))
+                        },
+                    }
                 },
                 _ => Ok(Exp::LogicOr(parse_logic_or_exp(iter)?)),
             }
@@ -286,8 +296,8 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
         },
         Some(Token::Operator(Operation::Assignment(op))) => {
             let op = match op {
-                lexer::AssignmentOp::Increment => FactorOp::Inc,
-                lexer::AssignmentOp::Decrement => FactorOp::Dec,
+                lexer::AssignmentOp::Increment => FactorOp::PreInc,
+                lexer::AssignmentOp::Decrement => FactorOp::PreDec,
                 _ => return Err("Expected unary operator"),
             };
             let factor = parse_factor(iter)?;
@@ -402,8 +412,8 @@ pub enum FactorOp {
     Negate,
     LogicalNot,
     BitNot,
-    Inc,
-    Dec,
+    PreInc,
+    PreDec,
 }
 
 #[derive(Debug)]
@@ -471,7 +481,9 @@ pub enum AssignmentOp {
     Div,
     Mod,
     Plus,
+    PostInc,
     Sub,
+    PostDec,
     LShift,
     RShift,
     BitAnd,

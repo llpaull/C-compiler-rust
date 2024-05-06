@@ -58,7 +58,9 @@ fn assemble_exp(exp: &parser::Exp, stack: &mut StackFrame, res: &mut String) {
             match op {
                 parser::AssignmentOp::Assign => res.push_str(&format!("mov %rax, {}(%rbp)\n", offset)),
                 parser::AssignmentOp::Plus => res.push_str(&format!("add %rax, {}(%rbp)\n", offset)),
+                parser::AssignmentOp::PostInc => res.push_str(&format!("inc {}(%rbp)\n", offset)),
                 parser::AssignmentOp::Sub => res.push_str(&format!("sub %rax, {}(%rbp)\n", offset)),
+                parser::AssignmentOp::PostDec => res.push_str(&format!("dec {}(%rbp)\n", offset)),
                 parser::AssignmentOp::Mult => {
                     res.push_str(&format!("imul {}(%rbp)\n", offset));
                     res.push_str(&format!("mov %rax, {}(%rbp)\n", offset));
@@ -300,7 +302,7 @@ fn assemble_factor(factor: &parser::Factor, stack: &mut StackFrame, res: &mut St
                     res.push_str("mov $0, %rax\n");
                     res.push_str("sete %al\n");
                 },
-                parser::FactorOp::Inc => {
+                parser::FactorOp::PreInc => {
                     let offset = match **exp {
                         parser::Factor::Variable(ref name) => stack.get_var(name),
                         _ => panic!("Invalid increment"),
@@ -308,7 +310,7 @@ fn assemble_factor(factor: &parser::Factor, stack: &mut StackFrame, res: &mut St
                     res.push_str(&format!("inc {}(%rbp)\n", offset));
                     assemble_factor(exp, stack, res);
                 }
-                parser::FactorOp::Dec => {
+                parser::FactorOp::PreDec => {
                     let offset = match **exp {
                         parser::Factor::Variable(ref name) => stack.get_var(name),
                         _ => panic!("Invalid decrement"),
