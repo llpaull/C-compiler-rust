@@ -3,51 +3,56 @@ use crate::lexer::{self, Token, Operation, BasicOp};
 
 pub fn parse(tokens: &Vec<Token>) -> Result<Program, String> {
     let mut iter = tokens.iter().peekable();
+    let mut funcs = Vec::new();
+    while let Some(_) = iter.peek() {
+        funcs.push(parse_function(&mut iter)?);
+    }
+    Ok(Program {funcs})
+}
+
+fn parse_function(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<FunDecl, String> {
     match iter.next() {
-        Some(token) => {
-            match token {
-                Token::Keyword(kw) if kw == "int" => {
-                    let name = match iter.next() {
-                        Some(Token::Identifier(name)) => name,
-                        err@_ => return Err(format!("Expected function name but got {:?}", err)),
-                    };
+        Some(Token::Keyword(kw)) if kw == "int" => {},
+        err@_ => return Err(format!("Expceted int keyword but got {:?}", err)),
+    }
+    let name = match iter.next() {
+        Some(Token::Identifier(name)) => name.to_string(),
+        err@_ => return Err(format!("Expected function name but got {:?}", err)),
+    };
+    match iter.next() {
+        Some(Token::LParen) => {},
+        err@_ => return Err(format!("Expected LParen but got {:?}", err)),
+    }
+    match iter.next() {
+        Some(Token::RParen) => {},
+        err@_ => return Err(format!("Expected RParen but got {:?}", err)),
+    }
+    match iter.next() {
+        Some(Token::LBrace) => {},
+        err@_ => return Err(format!("Expected LBrace but got {:?}", err)),
+    }
 
-                    match iter.next() {
-                        Some(Token::LParen) => {},
-                        err@_ => return Err(format!("Expected left parenthesis but got {:?}", err)),
-                    }
-                    match iter.next() {
-                        Some(Token::RParen) => {},
-                        err@_ => return Err(format!("Expected right parenthesis but got {:?}", err)),
-                    }
-                    match iter.next() {
-                        Some(Token::LBrace) => {},
-                        err@_ => return Err(format!("Expected left brace but got {:?}", err)),
-                    }
+    let mut body = Vec::new();
 
-                    let mut statements: Vec<Statement> = Vec::new();
+    while let Some(token) = iter.peek() {
+        match token {
+            Token::RBrace => break,
+            _ => body.push(parse_block_item(iter)?),
+        }
+    }
 
-                    while let Some(exp) = iter.peek() {
-                        match exp {
-                            Token::RBrace => break,
-                            _ => statements.push(parse_statement(&mut iter)?),
-                        }
-                    }
+    match iter.next() {
+        Some(Token::RBrace) => {},
+        _ => return Err("Expected RBrace to end function but reached end of tokens instead".to_string()),
+    }
 
-                    match iter.next() {
-                        Some(Token::RBrace) => {},
-                        err@_ => return Err(format!("Expected right brace but got {:?}", err)),
-                    }
+    Ok(FunDecl{name, body })
+}
 
-                    let mut funcs: Vec<FunDecl> = Vec::new();
-                    let func = FunDecl {name: name.to_string(), body: statements};
-                    funcs.push(func);
-                    Ok(Program {funcs})
-                },
-                err@_ => return Err(format!("Expected int but got {:?}", err)),
-            }
-        },
-        None => return Err("No tokens found".to_string()),
+pub fn parse_block_item(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BlockItem, String> {
+    match iter.peek() {
+        Some(Token::Keyword(kw)) if kw == "int" => Ok(BlockItem::Declaration(parse_declaration(iter)?)),
+        _ => Ok(BlockItem::Statement(parse_statement(iter)?)),
     }
 }
 
@@ -56,25 +61,69 @@ fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<State
         Some(Token::Keyword(kw)) if kw == "return" => {
             iter.next();
             let exp = parse_expression(iter)?;
+            match iter.next() {
+                Some(Token::Semicolon) => {},
+                err@_ => return Err(format!("expected semicolon at end of statement but got {:?}", err)),
+            }
             Statement::Return(exp)
         },
-        Some(Token::Keyword(kw)) if kw == "int" => {
+        Some(Token::Keyword(kw)) if kw == "if" => {
             iter.next();
+            parse_if_statement(iter)?
+        },
+        Some(_) => {
+            let exp = parse_expression(iter)?;
+            match iter.next() {
+                Some(Token::Semicolon) => {},
+                err@_ => return Err(format!("expected semicolon at end of statement but got {:?}", err)),
+            }
+            Statement::Expression(exp)
+        },
+        None => return Err("Ran out of tokens while parsing function body".to_string()),
+    };
+
+    Ok(ret)
+} 
+
+fn parse_if_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Statement, String> {
+    match iter.next() {
+        Some(Token::LParen) => {},
+        err@_ => return Err(format!("Expected LParen but got {:?}", err)),
+    }
+    let exp = parse_expression(iter)?;
+    match iter.next() {
+        Some(Token::RParen) => {},
+        err@_ => return Err(format!("Expected RParen but got {:?}", err)),
+    }
+    let t = Box::new(parse_statement(iter)?);
+    let f =  match iter.peek() {
+        Some(Token::Keyword(kw)) if kw == "else" => {
+            iter.next();
+            Some(Box::new(parse_statement(iter)?))
+        },
+        _ => None,
+    };
+
+    Ok(Statement::If(exp, t, f))
+}
+
+fn parse_declaration(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Declaration, String> {
+    let ret = match iter.next() {
+        Some(Token::Keyword(kw)) if kw == "int" => {
             let name = match iter.next() {
                 Some(Token::Identifier(name)) => name,
                 err@_ => return Err(format!("Expected variable identifier but got {:?}", err)),
             };
             match iter.peek() {
-                Some(Token::Semicolon) => Statement::Declaration(name.to_string(), None),
+                Some(Token::Semicolon) => Declaration::Declare(name.to_string(), None),
                 Some(Token::Operator(Operation::Assignment(lexer::AssignmentOp::Assign))) => {
                     iter.next();
-                    Statement::Declaration(name.to_string(), Some(parse_expression(iter)?))
+                    Declaration::Declare(name.to_string(), Some(parse_expression(iter)?))
                 },
-                err@_ => return Err(format!("expected semicolon or assignment operator after variable declaration but got {:?}", err)),
+                err@_ => return Err(format!("Expected semicolon or assignment operator after variable declaration but got {:?}", err)),
             }
         },
-        Some(_) => Statement::Expression(parse_expression(iter)?),
-        None => return Err("ran out of tokens while parsing function body".to_string()),
+        err@_ => return Err(format!("Expected int but got {:?}", err)),
     };
 
     match iter.next() {
@@ -86,12 +135,12 @@ fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<State
 }
 
 fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp, String> {
-    let mut ret = Exp::Assignment(parse_assignment_expression(iter)?);
+    let mut ret = Exp::Assignment(parse_assignment_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
             Token::Comma => {
                 iter.next();
-                let next = Exp::Assignment(parse_assignment_expression(iter)?);
+                let next = Exp::Assignment(parse_assignment_exp(iter)?);
                 ret = Exp::Operator(CommaOp::Comma, Box::new(ret), Box::new(next));
             },
             _ => break,
@@ -100,7 +149,7 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
     Ok(ret)
 }
 
-fn parse_assignment_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<AssignmentExp, String> {
+fn parse_assignment_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<AssignmentExp, String> {
     match iter.peek() {
         Some(Token::Identifier(name)) => {
             let mut clone = iter.clone();
@@ -125,21 +174,38 @@ fn parse_assignment_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> 
                     };
                     match op {
                         AssignmentOp::PostInc | AssignmentOp::PostDec => {
-                            let var = AssignmentExp::LogicOr(parse_logic_or_exp(iter)?); // should only take one (1) token
+                            let var = AssignmentExp::Conditional(parse_conditional_exp(iter)?);
                             iter.next();
                             Ok(AssignmentExp::Operator(op, name.to_string(), Box::new(var)))
                         },
                         _ => {
                             iter.next();
                             iter.next();
-                            Ok(AssignmentExp::Operator(op, name.to_string(), Box::new(parse_assignment_expression(iter)?)))
+                            Ok(AssignmentExp::Operator(op, name.to_string(), Box::new(parse_assignment_exp(iter)?)))
                         },
                     }
                 },
-                _ => Ok(AssignmentExp::LogicOr(parse_logic_or_exp(iter)?)),
+                _ => Ok(AssignmentExp::Conditional(parse_conditional_exp(iter)?)),
             }
         },
-        _ => Ok(AssignmentExp::LogicOr(parse_logic_or_exp(iter)?)),
+        _ => Ok(AssignmentExp::Conditional(parse_conditional_exp(iter)?)),
+    }
+}
+
+fn parse_conditional_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<ConditionalExp, String> {
+    let cond = parse_logic_or_exp(iter)?;
+    match iter.peek() {
+        Some(Token::QuestionMark) => {
+            iter.next();
+            let t = Box::new(parse_expression(iter)?);
+            match iter.next() {
+                Some(Token::Colon) => {},
+                err@_ => return Err(format!("Expected colon in ternary expression but got {:?}", err)),
+            };
+            let f = Box::new(parse_conditional_exp(iter)?);
+            Ok(ConditionalExp::Operator(cond, t, f))
+        },
+        _ => Ok(ConditionalExp::LogicOr(cond)),
     }
 }
 
@@ -339,13 +405,24 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
 pub struct Program {pub funcs: Vec<FunDecl>}
 
 #[derive(Debug)]
-pub struct FunDecl {pub name: String, pub body: Vec<Statement>}
+pub struct FunDecl {pub name: String, pub body: Vec<BlockItem>}
+
+#[derive(Debug)]
+pub enum BlockItem {
+    Statement(Statement),
+    Declaration(Declaration),
+}
 
 #[derive(Debug)]
 pub enum Statement {
     Return(Exp),
-    Declaration(String, Option<Exp>),
     Expression(Exp),
+    If(Exp, Box<Statement>, Option<Box<Statement>>),
+}
+
+#[derive(Debug)]
+pub enum Declaration {
+    Declare(String, Option<Exp>),
 }
 
 #[derive(Debug)]
@@ -356,9 +433,16 @@ pub enum Exp {
 
 #[derive(Debug)]
 pub enum AssignmentExp {
-    LogicOr(LogicOrExp),
+    Conditional(ConditionalExp),
     Operator(AssignmentOp, String, Box<AssignmentExp>),
 }
+
+#[derive(Debug)]
+pub enum ConditionalExp {
+    LogicOr(LogicOrExp),
+    Operator(LogicOrExp, Box<Exp>, Box<ConditionalExp>),
+}
+
 
 #[derive(Debug)]
 pub enum LogicOrExp {

@@ -1,4 +1,4 @@
-const KEYWORDS: [&str; 2] = ["int", "return"];
+const KEYWORDS: [&str; 4] = ["int", "return", "if", "else"];
 
 pub fn lex(s: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
@@ -12,6 +12,8 @@ pub fn lex(s: &str) -> Vec<Token> {
             '[' => tokens.push(Token::LBracket),
             ']' => tokens.push(Token::RBracket),
             ';' => tokens.push(Token::Semicolon),
+            ':' => tokens.push(Token::Colon),
+            '?' => tokens.push(Token::QuestionMark),
             ',' => tokens.push(Token::Comma),
             '~' => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitNot))),
             '-' => match iter.peek() {
@@ -181,7 +183,9 @@ pub enum Token {
     LBracket,
     RBracket,
     Semicolon,
+    Colon,
     Comma,
+    QuestionMark,
     Keyword(String),
     Identifier(String),
     Integer(i64),

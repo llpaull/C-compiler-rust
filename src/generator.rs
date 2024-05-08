@@ -19,12 +19,14 @@ fn generate_func(func: &parser::FunDecl, res: &mut String) -> Result<(), String>
 
     func.body
         .iter()
-        .try_for_each(|statement| generate_statement(statement, &mut stack, res))?;
+        .try_for_each(|item| generate_block_item(item, &mut stack, res))?;
 
-    match func.body.last() {
-        Some(parser::Statement::Return(_)) => {},
-        _ => res.push_str("mov $0, %rax\n"),
+    let returns = match func.body.last() {
+        None => false,
+        Some(item) => check_returns(&item),
     };
+
+    if !returns { res.push_str("mov $0, %rax\n"); }
 
     res.push_str("mov %rbp, %rsp\n");
     res.push_str("pop %rbp\n");
@@ -33,12 +35,44 @@ fn generate_func(func: &parser::FunDecl, res: &mut String) -> Result<(), String>
     Ok(())
 }
 
+fn generate_block_item(item: &parser::BlockItem, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
+    match item {
+        parser::BlockItem::Statement(statement) => generate_statement(statement, stack, res)?,
+        parser::BlockItem::Declaration(declaration) => generate_declaration(declaration, stack, res)?,
+    }
+
+    Ok(())
+}
+
 fn generate_statement(statement: &parser::Statement, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
     match statement {
         parser::Statement::Return(exp) | parser::Statement::Expression(exp) => {
             generate_exp(exp, stack, res)?;
-        }
-        parser::Statement::Declaration(name, opt) => {
+        },
+        parser::Statement::If(cond, t, f) => {
+            generate_exp(cond, stack, res)?;
+            res.push_str("cmp $0, %rax\n");
+            let falseid = unique_id();
+            res.push_str(&format!("je {}\n", falseid));
+            generate_statement(t, stack, res)?;
+            match f {
+                None => res.push_str(&format!("{}:\n", falseid)),
+                Some(statement) => {
+                    let postid = unique_id();
+                    res.push_str(&format!("jmp {}\n", postid));
+                    res.push_str(&format!("{}:\n", falseid));
+                    generate_statement(statement, stack, res)?;
+                    res.push_str(&format!("{}:\n", postid));
+                },
+            }
+        },
+    };
+    Ok(())
+}
+
+fn generate_declaration(declaration: &parser::Declaration, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
+    match declaration {
+        parser::Declaration::Declare(name, opt) => {
             stack.new_var(name)?;
             match opt {
                 Some(exp) => {
@@ -47,8 +81,9 @@ fn generate_statement(statement: &parser::Statement, stack: &mut StackFrame, res
                 },
                 None => res.push_str("push $0\n"),
             }
-        }
-    };
+        },
+    }
+
     Ok(())
 }
 
@@ -63,9 +98,9 @@ fn generate_exp(exp: &parser::Exp, stack: &mut StackFrame, res: &mut String) -> 
     Ok(())
 }
 
-fn generate_assignment(assignment: &parser::AssignmentExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match assignment {
-        parser::AssignmentExp::LogicOr(logic_or) => generate_logic_or(logic_or, stack, res)?,
+fn generate_assignment(exp: &parser::AssignmentExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
+    match exp {
+        parser::AssignmentExp::Conditional(conditional) => generate_conditional(conditional, stack, res)?,
         parser::AssignmentExp::Operator(op, name, val) => {
             generate_assignment(val, stack, res)?;
             let offset = stack.get_var(name)?;
@@ -110,6 +145,25 @@ fn generate_assignment(assignment: &parser::AssignmentExp, stack: &mut StackFram
     Ok(())
 }
 
+fn generate_conditional(exp: &parser::ConditionalExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
+    match exp {
+        parser::ConditionalExp::LogicOr(logicor) => generate_logic_or(logicor, stack, res)?,
+        parser::ConditionalExp::Operator(cond, t, f) => {
+            generate_logic_or(cond, stack, res)?;
+            res.push_str("cmp $0, %rax\n");
+            let falseid = unique_id();
+            let postid = unique_id();
+            res.push_str(&format!("je {}\n", falseid));
+            generate_exp(t, stack, res)?;
+            res.push_str(&format!("jmp {}\n", postid));
+            res.push_str(&format!("{}:\n", falseid));
+            generate_conditional(f, stack, res)?;
+            res.push_str(&format!("{}:\n", postid));
+        },
+    }
+    Ok(())
+}
+
 fn generate_logic_or(exp: &parser::LogicOrExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
     match exp {
         parser::LogicOrExp::LogicAnd(logic_and) => generate_logic_and(logic_and, stack, res)?,
@@ -117,16 +171,16 @@ fn generate_logic_or(exp: &parser::LogicOrExp, stack: &mut StackFrame, res: &mut
             generate_logic_or(l, stack, res)?;
             res.push_str("cmp $0, %rax\n");
             let id = unique_id();
-            res.push_str(&format!("je _{}\n", id));
+            res.push_str(&format!("je {}\n", id));
             res.push_str("mov $1, %rax\n");
             let end = unique_id();
-            res.push_str(&format!("jmp _{}\n", end));
-            res.push_str(&format!("_{}:\n", id));
+            res.push_str(&format!("jmp {}\n", end));
+            res.push_str(&format!("{}:\n", id));
             generate_logic_or(r, stack, res)?;
             res.push_str("cmp $0, %rax\n");
             res.push_str("mov $0, %rax\n");
             res.push_str("setne %al\n");
-            res.push_str(&format!("_{}:\n", end));
+            res.push_str(&format!("{}:\n", end));
         }
     }
     Ok(())
@@ -139,15 +193,15 @@ fn generate_logic_and(exp: &parser::LogicAndExp, stack: &mut StackFrame, res: &m
             generate_logic_and(l, stack, res)?;
             res.push_str("cmp $0, %rax\n");
             let id = unique_id();
-            res.push_str(&format!("jne _{}\n", id));
+            res.push_str(&format!("jne {}\n", id));
             let end = unique_id();
-            res.push_str(&format!("jmp _{}\n", end));
-            res.push_str(&format!("_{}:\n", id));
+            res.push_str(&format!("jmp {}\n", end));
+            res.push_str(&format!("{}:\n", id));
             generate_logic_and(r, stack, res)?;
             res.push_str("cmp $0, %rax\n");
             res.push_str("mov $0, %rax\n");
             res.push_str("setne %al\n");
-            res.push_str(&format!("_{}:\n", end));
+            res.push_str(&format!("{}:\n", end));
         }
     }
     Ok(())
@@ -359,7 +413,29 @@ fn unique_id() -> String {
     unsafe {
         let ret = COUNTER;
         COUNTER += 1;
-        ret.to_string()
+        format!("_{}", ret)
+    }
+}
+
+fn check_returns(item: &parser::BlockItem) -> bool {
+    match item {
+        parser::BlockItem::Declaration(_) => false,
+        parser::BlockItem::Statement(statement) => check_return_statement(&statement),
+    }
+}
+
+fn check_return_statement(statement: &parser::Statement) -> bool {
+    match statement {
+        parser::Statement::Expression(_) => false,
+        parser::Statement::Return(_) => true,
+        parser::Statement::If(_, t, f) => {
+            let t = check_return_statement(&t);
+            let f = match f {
+                Some(s) => check_return_statement(&s),
+                None => false,
+            };
+            t && f
+        }
     }
 }
 
