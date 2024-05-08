@@ -1,5 +1,5 @@
 [package]
-name = "compiler_rust"
+name = "C_compiler_rust"
 version = "0.1.0"
 edition = "2021"
 

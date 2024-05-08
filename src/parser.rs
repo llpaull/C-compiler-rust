@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use crate::lexer::{self, Token, Operation, BasicOp};
 
-pub fn parse(tokens: &Vec<Token>) -> Result<Program, &'static str> {
+pub fn parse(tokens: &Vec<Token>) -> Result<Program, String> {
     let mut iter = tokens.iter().peekable();
     match iter.next() {
         Some(token) => {
@@ -9,20 +9,20 @@ pub fn parse(tokens: &Vec<Token>) -> Result<Program, &'static str> {
                 Token::Keyword(kw) if kw == "int" => {
                     let name = match iter.next() {
                         Some(Token::Identifier(name)) => name,
-                        _ => return Err("Expected function name"),
+                        err@_ => return Err(format!("Expected function name but got {:?}", err)),
                     };
 
                     match iter.next() {
                         Some(Token::LParen) => {},
-                        _ => return Err("Expected left parenthesis"),
+                        err@_ => return Err(format!("Expected left parenthesis but got {:?}", err)),
                     }
                     match iter.next() {
                         Some(Token::RParen) => {},
-                        _ => return Err("Expected right parenthesis"),
+                        err@_ => return Err(format!("Expected right parenthesis but got {:?}", err)),
                     }
                     match iter.next() {
                         Some(Token::LBrace) => {},
-                        _ => return Err("Expected left brace"),
+                        err@_ => return Err(format!("Expected left brace but got {:?}", err)),
                     }
 
                     let mut statements: Vec<Statement> = Vec::new();
@@ -36,7 +36,7 @@ pub fn parse(tokens: &Vec<Token>) -> Result<Program, &'static str> {
 
                     match iter.next() {
                         Some(Token::RBrace) => {},
-                        _ => return Err("Expected right brace"),
+                        err@_ => return Err(format!("Expected right brace but got {:?}", err)),
                     }
 
                     let mut funcs: Vec<FunDecl> = Vec::new();
@@ -44,14 +44,14 @@ pub fn parse(tokens: &Vec<Token>) -> Result<Program, &'static str> {
                     funcs.push(func);
                     Ok(Program {funcs})
                 },
-                _ => return Err("Expected int"),
+                err@_ => return Err(format!("Expected int but got {:?}", err)),
             }
         },
-        None => return Err("No tokens found"),
+        None => return Err("No tokens found".to_string()),
     }
 }
 
-fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Statement, &'static str> {
+fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Statement, String> {
     let ret = match iter.peek() {
         Some(Token::Keyword(kw)) if kw == "return" => {
             iter.next();
@@ -62,7 +62,7 @@ fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<State
             iter.next();
             let name = match iter.next() {
                 Some(Token::Identifier(name)) => name,
-                _ => return Err("Expected identifier"),
+                err@_ => return Err(format!("Expected variable identifier but got {:?}", err)),
             };
             match iter.peek() {
                 Some(Token::Semicolon) => Statement::Declaration(name.to_string(), None),
@@ -70,22 +70,22 @@ fn parse_statement(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<State
                     iter.next();
                     Statement::Declaration(name.to_string(), Some(parse_expression(iter)?))
                 },
-                _ => return Err("Unexpected token when declaring variable"),
+                err@_ => return Err(format!("expected semicolon or assignment operator after variable declaration but got {:?}", err)),
             }
         },
         Some(_) => Statement::Expression(parse_expression(iter)?),
-        None => return Err("ran out of tokens while parsing statement"),
+        None => return Err("ran out of tokens while parsing function body".to_string()),
     };
 
     match iter.next() {
         Some(Token::Semicolon) => {},
-        _ => return Err("unknown token at end of statement"),
+        err@_ => return Err(format!("expected semicolon at end of statement but got {:?}", err)),
     }
 
     Ok(ret)
 }
 
-fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp, &'static str> {
+fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp, String> {
     let mut ret = Exp::Assignment(parse_assignment_expression(iter)?);
     while let Some(token) = iter.peek() {
         match token {
@@ -100,7 +100,7 @@ fn parse_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Exp,
     Ok(ret)
 }
 
-fn parse_assignment_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<AssignmentExp, &'static str> {
+fn parse_assignment_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<AssignmentExp, String> {
     match iter.peek() {
         Some(Token::Identifier(name)) => {
             let mut clone = iter.clone();
@@ -143,7 +143,7 @@ fn parse_assignment_expression(iter: &mut Peekable<std::slice::Iter<Token>>) -> 
     }
 }
 
-fn parse_logic_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<LogicOrExp, &'static str> {
+fn parse_logic_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<LogicOrExp, String> {
     let mut ret = LogicOrExp::LogicAnd(parse_logic_and_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
@@ -158,7 +158,7 @@ fn parse_logic_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Lo
     Ok(ret)
 }
 
-fn parse_logic_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<LogicAndExp, &'static str> {
+fn parse_logic_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<LogicAndExp, String> {
     let mut ret = LogicAndExp::BitOr(parse_bit_or_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
@@ -173,7 +173,7 @@ fn parse_logic_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<L
     Ok(ret)
 }
 
-fn parse_bit_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitOrExp, &'static str> {
+fn parse_bit_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitOrExp, String> {
     let mut ret = BitOrExp::BitXor(parse_bit_xor_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
@@ -188,7 +188,7 @@ fn parse_bit_or_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitO
     Ok(ret)
 }
 
-fn parse_bit_xor_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitXorExp, &'static str> {
+fn parse_bit_xor_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitXorExp, String> {
     let mut ret = BitXorExp::BitAnd(parse_bit_and_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
@@ -203,7 +203,7 @@ fn parse_bit_xor_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Bit
     Ok(ret)
 }
 
-fn parse_bit_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitAndExp, &'static str> {
+fn parse_bit_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<BitAndExp, String> {
     let mut ret = BitAndExp::Equality(parse_equality_exp(iter)?);
     while let Some(token) = iter.peek() {
         match token {
@@ -218,7 +218,7 @@ fn parse_bit_and_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Bit
     Ok(ret)
 }
 
-fn parse_equality_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<EqualityExp, &'static str> {
+fn parse_equality_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<EqualityExp, String> {
     let mut ret = EqualityExp::Rel(parse_rel_exp(iter)?);
     while let Some(token) = iter.peek() {
         let op = match token {
@@ -233,7 +233,7 @@ fn parse_equality_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Eq
     Ok(ret)
 }
 
-fn parse_rel_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<RelExp, &'static str> {
+fn parse_rel_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<RelExp, String> {
     let mut ret = RelExp::Shift(parse_shift_exp(iter)?);
     while let Some(token) = iter.peek() {
         let op = match token {
@@ -250,7 +250,7 @@ fn parse_rel_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<RelExp,
     Ok(ret)
 }
 
-fn parse_shift_exp(iter : &mut Peekable<std::slice::Iter<Token>>) -> Result<ShiftExp, &'static str> {
+fn parse_shift_exp(iter : &mut Peekable<std::slice::Iter<Token>>) -> Result<ShiftExp, String> {
     let mut ret = ShiftExp::Additive(parse_additive_exp(iter)?);
     while let Some(token) = iter.peek() {
         let op = match token {
@@ -265,7 +265,7 @@ fn parse_shift_exp(iter : &mut Peekable<std::slice::Iter<Token>>) -> Result<Shif
     Ok(ret)
 }
 
-fn parse_additive_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<AdditiveExp, &'static str> {
+fn parse_additive_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<AdditiveExp, String> {
     let mut ret = AdditiveExp::Term(parse_term(iter)?);
     while let Some(token) = iter.peek() {
         let op = match token {
@@ -280,7 +280,7 @@ fn parse_additive_exp(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Ad
     Ok(ret)
 }
 
-fn parse_term(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Term, &'static str> {
+fn parse_term(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Term, String> {
     let mut ret = Term::Factor(parse_factor(iter)?);
     while let Some(token) = iter.peek() {
         let op = match token {
@@ -296,7 +296,7 @@ fn parse_term(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Term, &'st
     Ok(ret)
 }
 
-fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, &'static str> {
+fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, String> {
     match iter.next() {
         Some(Token::Integer(i)) => Ok(Factor::Integer(*i)),
         Some(Token::Operator(Operation::Basic(op))) => {
@@ -304,7 +304,7 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
                 BasicOp::Minus => FactorOp::Negate,
                 BasicOp::LogicalNot => FactorOp::LogicalNot,
                 BasicOp::BitNot => FactorOp::BitNot,
-                _ => return Err("Expected unary operator"),
+                _ => return Err(format!("Expected unary operator but got {:?}", op)),
             };
             let factor = parse_factor(iter)?;
             Ok(Factor::Operator(op, Box::new(factor)))
@@ -313,12 +313,12 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
             let op = match op {
                 lexer::AssignmentOp::Increment => FactorOp::PreInc,
                 lexer::AssignmentOp::Decrement => FactorOp::PreDec,
-                _ => return Err("Expected unary operator"),
+                _ => return Err(format!("Expected unary operator but got {:?}", op)),
             };
             let factor = parse_factor(iter)?;
             match factor {
                 Factor::Variable(_) => {},
-                _ => return Err("cannot increment non-variable"),
+                _ => return Err(format!("Expected variable but got {:?}", factor)),
             }
             // prefix increment/decrement
             Ok(Factor::Operator(op, Box::new(factor)))
@@ -327,11 +327,11 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
             let exp = parse_expression(iter)?;
             match iter.next() {
                 Some(Token::RParen) => Ok(Factor::Paren(Box::new(exp))),
-                _ => Err("Expected right parenthesis"),
+                err@_ => Err(format!("Expected right parenthesis but got {:?}", err)),
             }
         },
         Some(Token::Identifier(name)) => Ok(Factor::Variable(name.to_string())),
-        _ => Err("Expected factor"),
+        err@_ => Err(format!("Expected factor but got {:?}", err)),
     }
 }
 
