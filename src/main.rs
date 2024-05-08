@@ -1,64 +1,91 @@
-use std::fs;
 use std::env;
+use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::io::Write;
+use std::process;
+use std::error::Error;
+
 mod lexer;
 mod parser;
-mod assembler;
+mod generator;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        eprintln!("Usage: {} <filename>", args[0]);
-        return;
+    let config = Config::new(env::args()).unwrap_or_else(|err| {
+        eprintln!("Problem processing arguments: {}", err);
+        process::exit(1);
+    });
+
+    if let Err(e) = run(config) {
+        eprintln!("Application error: {}", e);
+        process::exit(1);
     }
-    let filename = &args[1];
+}
 
-    let extension = Path::new(filename).extension().and_then(|s| s.to_str()).unwrap_or("");
-    if extension != "c" {
-        eprintln!("Incorrect file type: .{}, <filename>.c is required", extension);
-        return;
-    }
-    let name: String;
-    let file = Path::new(filename).file_stem().and_then(|s| s.to_str()).unwrap_or("");
+fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    let tokens = lexer::lex(&fs::read_to_string(&config.filepath)?);
+    if config.debug { tokens.iter().for_each(|token| println!("{:?}", token)) }
+    
+    let ast = parser::parse(&tokens)?;
+    if config.debug { println!("{:#?}", ast) }
 
-    #[cfg(not(debug_assertions))]
-    {
-        let path = Path::new(filename).parent().unwrap_or(Path::new(""));
-        let full_path = path.join(file);
-        name = full_path.display().to_string();
-    }
+    let assembly = generator::generate(&ast)?;
 
-    #[cfg(debug_assertions)]
-    {
-        name = file.to_string();
+    fs::File::create("assembly.s")?.write_all(&assembly.as_bytes())?;
+    process::Command::new("gcc").args(["assembly.s", "-o", &config.filename]).output()?;
+
+    if !config.debug {
+        process::Command::new("rm").arg("assembly.s").output()?;
     }
 
-    if let Ok(contents) = fs::read_to_string(filename) {
-        let tokens = lexer::lex(&contents);
+    Ok(())
+}
 
-        #[cfg(debug_assertions)]
-        for token in &tokens {
-            println!("{:?}", token);
+struct Config {
+    filename: String,
+    filepath: String,
+    debug: bool,
+}
+
+impl Config {
+    fn new(mut args: impl Iterator<Item = String>) -> Result<Self, &'static str> {
+        args.next();
+        let filepath = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Expected filename"),
+        };
+
+        match Path::new(&filepath).extension().and_then(|s| s.to_str()).unwrap_or("") {
+            "c" => {},
+            _ => return Err("Incorrect or no file extension found, .c file extension is required"),
         }
 
-        let ast = parser::parse(tokens).expect("error parsing tokens, invalid grammar");
-
+        let debug: bool;
         #[cfg(debug_assertions)]
-        println!("{:#?}", ast);
-
-        let assembly = assembler::assemble(&ast);
-
-        let mut file = fs::File::create("assembly.s").expect("Error creating file");
-        file.write_all(assembly.as_bytes()).expect("Error writing to file");
-
-        Command::new("gcc").args(["assembly.s", "-o", &name]).output().expect("Error compiling assembly");
+        { debug = true; }
 
         #[cfg(not(debug_assertions))]
-        Command::new("rm").args(&["assembly.s"]).output().expect("Error removing assembly file");
-    }
-    else {
-        eprintln!("Error reading file");
+        { debug = false; }
+
+        // because of how the test script by nora sandler is written,
+        // it expects the executable to be inside the same folder as the source file.
+        // however, when i am debugging i want the executable to be in the current directory
+        // just like how gcc normally does it, that is what this is for
+
+        let filename: String;
+        let name = Path::new(&filepath).file_stem().and_then(|s| s.to_str()).unwrap();
+
+        if debug {
+            filename = name.to_string();
+        }
+        else {
+            filename = Path::new(&filepath).parent().unwrap().join(name).display().to_string();
+        }
+
+
+        Ok(Config{
+            filename,
+            filepath,
+            debug,
+        })
     }
 }

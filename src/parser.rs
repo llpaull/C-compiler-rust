@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use crate::lexer::{self, Token, Operation, BasicOp};
 
-pub fn parse(tokens: Vec<Token>) -> Result<Program, &'static str> {
+pub fn parse(tokens: &Vec<Token>) -> Result<Program, &'static str> {
     let mut iter = tokens.iter().peekable();
     match iter.next() {
         Some(token) => {

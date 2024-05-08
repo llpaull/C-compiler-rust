@@ -39,7 +39,7 @@ fn generate_statement(statement: &parser::Statement, stack: &mut StackFrame, res
             generate_exp(exp, stack, res)?;
         }
         parser::Statement::Declaration(name, opt) => {
-            stack.new_var(name);
+            stack.new_var(name)?;
             match opt {
                 Some(exp) => {
                     generate_exp(exp, stack, res)?;
@@ -314,15 +314,15 @@ fn generate_factor(factor: &parser::Factor, stack: &mut StackFrame, res: &mut St
         parser::Factor::Operator(op, exp) => {
             match op {
                 parser::FactorOp::Negate => {
-                    generate_factor(exp, stack, res);
+                    generate_factor(exp, stack, res)?;
                     res.push_str("neg %rax\n");
                 },
                 parser::FactorOp::BitNot => {
-                    generate_factor(exp, stack, res);
+                    generate_factor(exp, stack, res)?;
                     res.push_str("not %rax\n")
                 },
                 parser::FactorOp::LogicalNot => {
-                    generate_factor(exp, stack, res);
+                    generate_factor(exp, stack, res)?;
                     res.push_str("cmp $0, %rax\n");
                     res.push_str("mov $0, %rax\n");
                     res.push_str("sete %al\n");
@@ -333,7 +333,7 @@ fn generate_factor(factor: &parser::Factor, stack: &mut StackFrame, res: &mut St
                         _ => panic!("Invalid increment"),
                     };
                     res.push_str(&format!("inc {}(%rbp)\n", offset));
-                    generate_factor(exp, stack, res);
+                    generate_factor(exp, stack, res)?;
                 }
                 parser::FactorOp::PreDec => {
                     let offset = match **exp {
@@ -377,7 +377,7 @@ impl StackFrame {
 
     fn new_var(&mut self, name: &String) -> Result<(), String> {
         match self.vars.get(name) {
-            Some(_) => return Err(format!("cannot instantiate variable name twice: {}", name)),
+            Some(_) => return Err(format!("cannot instantiate {} variable more than once", name)),
             None => {}
         }
         self.vars.insert(name.to_string(), self.index);
@@ -388,7 +388,7 @@ impl StackFrame {
     fn get_var(&self, name: &String) -> Result<i32, String> {
         match self.vars.get(name) {
             Some(i) => Ok(*i),
-            None => Err(format!("cannot reference variable that has not been instantiated: {}", name))
+            None => Err(format!("{} has not been instantiated yet", name))
         }
     }
 }
