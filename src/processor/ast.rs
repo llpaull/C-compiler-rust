@@ -1,5 +1,3 @@
-use super::token::Token;
-
 #[derive(Debug)]
 pub struct Program {
     pub funcs: Vec<Function>,
@@ -8,7 +6,7 @@ pub struct Program {
 #[derive(Debug)]
 pub struct Function {
     pub name: String,
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 
 #[derive(Debug)]
@@ -57,24 +55,4 @@ pub enum BinOp {
     ShiftLeft,
     ShiftRight,
     Comma,
-}
-
-impl BinOp {
-    fn from(token: Token) -> Result<Self, String> {
-        match token {
-            Token::Negation => Ok(BinOp::Subtraction),
-            err => Err(format!("Cannot convert {:?} into BinOp", err)),
-        }
-    }
-}
-
-impl UnOp {
-    fn from(token: Token) -> Result<Self, String> {
-        match token {
-            Token::Negation => Ok(UnOp::Negation),
-            Token::BitNot => Ok(UnOp::BitNot),
-            Token::LogicNot => Ok(UnOp::LogicNot),
-            err => Err(format!("Cannot convert {:?} to UnOp, can only use: !, ~, -", err)),
-        }
-    }
 }

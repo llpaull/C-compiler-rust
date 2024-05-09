@@ -27,7 +27,9 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
     if config.debug { tokens2.iter().for_each(|token| println!("{:?}", token)) }
     
     let ast = parser::parse(&tokens)?;
+    let ast2 = parser2::parse(tokens2)?;
     if config.debug { println!("{:#?}", ast) }
+    if config.debug { println!("{:#?}", ast2) }
 
     let assembly = generator::generate(&ast)?;
 
