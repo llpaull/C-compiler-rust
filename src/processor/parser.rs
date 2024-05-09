@@ -386,7 +386,6 @@ fn parse_factor(iter: &mut Peekable<std::slice::Iter<Token>>) -> Result<Factor, 
                 Factor::Variable(_) => {},
                 _ => return Err(format!("Expected variable but got {:?}", factor)),
             }
-            // prefix increment/decrement
             Ok(Factor::Operator(op, Box::new(factor)))
         },
         Some(Token::LParen) => {

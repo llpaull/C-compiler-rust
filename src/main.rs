@@ -5,9 +5,8 @@ use std::io::Write;
 use std::process;
 use std::error::Error;
 
-mod lexer;
-mod parser;
-mod generator;
+mod processor;
+use processor::*;
 
 fn main() {
     let config = Config::new(env::args()).unwrap_or_else(|err| {
@@ -23,7 +22,9 @@ fn main() {
 
 fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let tokens = lexer::lex(&fs::read_to_string(&config.filepath)?);
+    let tokens2 = lexer2::lex(&fs::read_to_string(&config.filepath)?)?;
     if config.debug { tokens.iter().for_each(|token| println!("{:?}", token)) }
+    if config.debug { tokens2.iter().for_each(|token| println!("{:?}", token)) }
     
     let ast = parser::parse(&tokens)?;
     if config.debug { println!("{:#?}", ast) }
