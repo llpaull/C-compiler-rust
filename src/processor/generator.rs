@@ -1,440 +1,353 @@
-use crate::parser;
+use super::ast::*;
 use std::collections::HashMap;
+use std::error::Error;
 
-pub fn generate(ast: &parser::Program) -> Result<String, String> {
-    let mut res = String::new();
-    ast.funcs
-        .iter()
-        .try_for_each(|func| generate_func(func, &mut res))?;
-
-    Ok(res)
+pub struct Generator {
+    unique_ids: u32,
+    assembly: Vec<String>,
 }
 
-fn generate_func(func: &parser::FunDecl, res: &mut String) -> Result<(), String> {
-    res.push_str(&format!(".globl {}\n{}:\n", func.name, func.name));
-
-    res.push_str("push %rbp\n");
-    res.push_str("mov %rsp, %rbp\n");
-    let mut stack = StackFrame::new();
-
-    func.body
-        .iter()
-        .try_for_each(|item| generate_block_item(item, &mut stack, res))?;
-
-    let returns = match func.body.last() {
-        None => false,
-        Some(item) => check_returns(&item),
-    };
-
-    if !returns { res.push_str("mov $0, %rax\n"); }
-
-    res.push_str("mov %rbp, %rsp\n");
-    res.push_str("pop %rbp\n");
-    res.push_str("ret\n");
-
-    Ok(())
-}
-
-fn generate_block_item(item: &parser::BlockItem, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match item {
-        parser::BlockItem::Statement(statement) => generate_statement(statement, stack, res)?,
-        parser::BlockItem::Declaration(declaration) => generate_declaration(declaration, stack, res)?,
+// helper functions
+impl Generator {
+    fn new() -> Self {
+        Generator {
+            unique_ids: 0,
+            assembly: vec![],
+        }
     }
 
-    Ok(())
-}
-
-fn generate_statement(statement: &parser::Statement, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match statement {
-        parser::Statement::Return(exp) | parser::Statement::Expression(exp) => {
-            generate_exp(exp, stack, res)?;
-        },
-        parser::Statement::If(cond, t, f) => {
-            generate_exp(cond, stack, res)?;
-            res.push_str("cmp $0, %rax\n");
-            let falseid = unique_id();
-            res.push_str(&format!("je {}\n", falseid));
-            generate_statement(t, stack, res)?;
-            match f {
-                None => res.push_str(&format!("{}:\n", falseid)),
-                Some(statement) => {
-                    let postid = unique_id();
-                    res.push_str(&format!("jmp {}\n", postid));
-                    res.push_str(&format!("{}:\n", falseid));
-                    generate_statement(statement, stack, res)?;
-                    res.push_str(&format!("{}:\n", postid));
-                },
-            }
-        },
-    };
-    Ok(())
-}
-
-fn generate_declaration(declaration: &parser::Declaration, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match declaration {
-        parser::Declaration::Declare(name, opt) => {
-            stack.new_var(name)?;
-            match opt {
-                Some(exp) => {
-                    generate_exp(exp, stack, res)?;
-                    res.push_str("push %rax\n");
-                },
-                None => res.push_str("push $0\n"),
-            }
-        },
+    fn add(&mut self, s: &str) {
+        self.assembly.push(s.to_string());
     }
 
-    Ok(())
-}
-
-fn generate_exp(exp: &parser::Exp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::Exp::Assignment(assignment) => generate_assignment(assignment, stack, res)?,
-        parser::Exp::Operator(_op, l, r) => {
-            generate_exp(l, stack, res)?;
-            generate_exp(r, stack, res)?;
-        },
+    fn next_id(&mut self) -> String {
+        let ret = format!("_{}", self.unique_ids);
+        self.unique_ids += 1;
+        ret
     }
-    Ok(())
+
+    fn build(&mut self) -> String {
+        self.assembly.join("\n")
+    }
 }
 
-fn generate_assignment(exp: &parser::AssignmentExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::AssignmentExp::Conditional(conditional) => generate_conditional(conditional, stack, res)?,
-        parser::AssignmentExp::Operator(op, name, val) => {
-            generate_assignment(val, stack, res)?;
-            let offset = stack.get_var(name)?;
-            match op {
-                parser::AssignmentOp::Assign => res.push_str(&format!("mov %rax, {}(%rbp)\n", offset)),
-                parser::AssignmentOp::Plus => res.push_str(&format!("add %rax, {}(%rbp)\n", offset)),
-                parser::AssignmentOp::PostInc => res.push_str(&format!("inc {}(%rbp)\n", offset)),
-                parser::AssignmentOp::Sub => res.push_str(&format!("sub %rax, {}(%rbp)\n", offset)),
-                parser::AssignmentOp::PostDec => res.push_str(&format!("dec {}(%rbp)\n", offset)),
-                parser::AssignmentOp::Mult => {
-                    res.push_str(&format!("imul {}(%rbp)\n", offset));
-                    res.push_str(&format!("mov %rax, {}(%rbp)\n", offset));
+// generator functions
+impl Generator {
+    pub fn generate(ast: &Program) -> Result<String, Box<dyn Error>> {
+        let mut gen = Generator::new();
+        gen.generate_program(ast)
+    }
+
+    fn generate_program(&mut self, ast: &Program) -> Result<String, Box<dyn Error>> {
+        ast.funcs
+            .iter()
+            .try_for_each(|function| self.generate_function(function))?;
+        Ok(self.build())
+    }
+
+    fn generate_function(&mut self, function: &Function) -> Result<(), Box<dyn Error>> {
+        self.add(&format!(".globl {}", function.name));
+        self.add(&format!("{}:", function.name));
+
+        self.add("push %rbp");
+        self.add("mov %rsp, %rbp");
+        let mut stack = StackFrame::new();
+
+        function
+            .body
+            .iter()
+            .try_for_each(|statement| self.generate_statement(&mut stack, statement))?;
+
+        if !self.check_returns(&function.body) {
+            self.add("mov $0, %rax");
+            self.add("mov %rbp, %rsp");
+            self.add("pop %rbp");
+            self.add("ret");
+        }
+
+        Ok(())
+    }
+
+    fn generate_statement(&mut self, stack: &mut StackFrame, statement: &Statement) -> Result<(), Box<dyn Error>> {
+        match statement {
+            Statement::Expression(exp) => self.generate_expression(stack, exp)?,
+            Statement::Return(exp) => {
+                self.generate_expression(stack, exp)?;
+                self.add("mov %rbp, %rsp");
+                self.add("pop %rbp");
+                self.add("ret");
+            },
+            Statement::Declaration(name, opt) => {
+                stack.add_var(name)?;
+                match opt {
+                    None => self.add("push $0"),
+                    Some(exp) => {
+                        self.generate_expression(stack, exp)?;
+                        self.add("push %rax");
+                    }
                 }
-                parser::AssignmentOp::Div => {
-                    res.push_str("mov %rax, %rcx\n");
-                    res.push_str(&format!("mov {}(%rbp), %rax\n", offset));
-                    res.push_str("cqo\n");
-                    res.push_str("idiv %rcx\n");
-                    res.push_str(&format!("mov %rax, {}(%rbp)\n", offset));
-                },
-                parser::AssignmentOp::Mod => {
-                    res.push_str("mov %rax, %rcx\n");
-                    res.push_str(&format!("mov {}(%rbp), %rax\n", offset));
-                    res.push_str("cqo\n");
-                    res.push_str("idiv %rcx\n");
-                    res.push_str(&format!("mov %rdx, {}(%rbp)\n", offset));
-               },
-                parser::AssignmentOp::BitOr => res.push_str(&format!("or %rax, {}(%rbp)\n", offset)),
-                parser::AssignmentOp::BitAnd => res.push_str(&format!("and %rax, {}(%rbp)\n", offset)),
-                parser::AssignmentOp::BitXor => res.push_str(&format!("xor %rax, {}(%rbp)\n", offset)),
-                parser::AssignmentOp::LShift => {
-                    res.push_str("mov %rax, %rcx\n");
-                    res.push_str(&format!("sal %rcx, {}(%rbp)\n", offset));
-                },
-                parser::AssignmentOp::RShift => {
-                    res.push_str("mov %rax, %rcx\n");
-                    res.push_str(&format!("sar %rcx, {}(%rbp)\n", offset));
-                },
+            },
+            Statement::If(cond, if_body, opt) => self.generate_if_statement(stack, cond, if_body, opt)?,
+        }
+
+        Ok(())
+    }
+
+    fn generate_if_statement(&mut self, stack: &mut StackFrame, cond: &Expression, if_body: &Statement, opt: &Option<Box<Statement>>) -> Result<(), Box<dyn Error>> {
+        self.generate_expression(stack, cond)?;
+        self.add("cmp $0, %rax");
+        let falseid = self.next_id();
+        self.add(&format!("je {}", falseid));
+        self.generate_statement(stack, if_body)?;
+        match opt {
+            None => self.add(&format!("{}:", falseid)),
+            Some(else_body) => {
+                let postid = self.next_id();
+                self.add(&format!("jmp {}", postid));
+                self.add(&format!("{}:", falseid));
+                self.generate_statement(stack, else_body)?;
+                self.add(&format!("{}:", postid));
             }
         }
+        Ok(())
     }
-    Ok(())
-}
 
-fn generate_conditional(exp: &parser::ConditionalExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::ConditionalExp::LogicOr(logicor) => generate_logic_or(logicor, stack, res)?,
-        parser::ConditionalExp::Operator(cond, t, f) => {
-            generate_logic_or(cond, stack, res)?;
-            res.push_str("cmp $0, %rax\n");
-            let falseid = unique_id();
-            let postid = unique_id();
-            res.push_str(&format!("je {}\n", falseid));
-            generate_exp(t, stack, res)?;
-            res.push_str(&format!("jmp {}\n", postid));
-            res.push_str(&format!("{}:\n", falseid));
-            generate_conditional(f, stack, res)?;
-            res.push_str(&format!("{}:\n", postid));
-        },
-    }
-    Ok(())
-}
-
-fn generate_logic_or(exp: &parser::LogicOrExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::LogicOrExp::LogicAnd(logic_and) => generate_logic_and(logic_and, stack, res)?,
-        parser::LogicOrExp::Operator(_op, l, r) => {
-            generate_logic_or(l, stack, res)?;
-            res.push_str("cmp $0, %rax\n");
-            let id = unique_id();
-            res.push_str(&format!("je {}\n", id));
-            res.push_str("mov $1, %rax\n");
-            let end = unique_id();
-            res.push_str(&format!("jmp {}\n", end));
-            res.push_str(&format!("{}:\n", id));
-            generate_logic_or(r, stack, res)?;
-            res.push_str("cmp $0, %rax\n");
-            res.push_str("mov $0, %rax\n");
-            res.push_str("setne %al\n");
-            res.push_str(&format!("{}:\n", end));
+    fn generate_expression(&mut self, stack: &mut StackFrame, expression: &Expression) -> Result<(), Box<dyn Error>> {
+        match expression {
+            Expression::Num(i) => self.add(&format!("mov ${}, %rax", i)),
+            Expression::Var(name) => self.add(&format!("mov {}(%rbp), %rax", stack.get_offset(name)?)),
+            Expression::UnOp(op, exp) => self.generate_unop(stack, op, exp)?,
+            Expression::BinOp(op, l, r) => self.generate_binop(stack, op, l, r)?,
+            Expression::Assign(name, exp) => {
+                self.generate_expression(stack, exp)?;
+                self.add(&format!("mov %rax, {}(%rbp)", stack.get_offset(name)?));
+            },
+            Expression::Ternary(cond, if_body, else_body) => self.generate_ternary(stack, cond, if_body, else_body)?,
         }
+        Ok(())
     }
-    Ok(())
-}
 
-fn generate_logic_and(exp: &parser::LogicAndExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::LogicAndExp::BitOr(bit_or) => generate_bit_or(bit_or, stack, res)?,
-        parser::LogicAndExp::Operator(_op, l, r) => {
-            generate_logic_and(l, stack, res)?;
-            res.push_str("cmp $0, %rax\n");
-            let id = unique_id();
-            res.push_str(&format!("jne {}\n", id));
-            let end = unique_id();
-            res.push_str(&format!("jmp {}\n", end));
-            res.push_str(&format!("{}:\n", id));
-            generate_logic_and(r, stack, res)?;
-            res.push_str("cmp $0, %rax\n");
-            res.push_str("mov $0, %rax\n");
-            res.push_str("setne %al\n");
-            res.push_str(&format!("{}:\n", end));
-        }
-    }
-    Ok(())
-}
-
-fn generate_bit_or(exp: &parser::BitOrExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::BitOrExp::BitXor(bit_xor) => generate_bit_xor(bit_xor, stack, res)?,
-        parser::BitOrExp::Operator(_op, l, r) => {
-            generate_bit_or(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_bit_or(r, stack, res)?;
-            res.push_str("pop %rcx\n");
-            res.push_str("or %rcx, %rax\n");
-        }
-    }
-    Ok(())
-}
-
-fn generate_bit_xor(exp: &parser::BitXorExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::BitXorExp::BitAnd(bit_and) => generate_bit_and(bit_and, stack, res)?,
-        parser::BitXorExp::Operator(_op, l, r) => {
-            generate_bit_xor(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_bit_xor(r, stack, res)?;
-            res.push_str("pop %rcx\n");
-            res.push_str("xor %rcx, %rax\n");
-        }
-    }
-    Ok(())
-}
-
-fn generate_bit_and(exp: &parser::BitAndExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::BitAndExp::Equality(equality) => generate_equality(equality, stack, res)?,
-        parser::BitAndExp::Operator(_op, l, r) => {
-            generate_bit_and(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_bit_and(r, stack, res)?;
-            res.push_str("pop %rcx\n");
-            res.push_str("and %rcx, %rax\n");
-        }
-    }
-    Ok(())
-}
-
-fn generate_equality(exp: &parser::EqualityExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::EqualityExp::Rel(rel) => generate_rel(rel, stack, res)?,
-        parser::EqualityExp::Operator(op, l, r) => {
-            generate_equality(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_equality(r, stack, res)?;
-            res.push_str("pop %rcx\n");
-            res.push_str("cmp %rax, %rcx\n");
-            res.push_str("mov $0, %rax\n");
-            match op {
-                parser::EqualityOp::Equals => res.push_str("sete %al\n"),
-                parser::EqualityOp::NotEquals => res.push_str("setne %al\n"),
+    fn generate_unop(&mut self, stack: &mut StackFrame, op: &UnOp, exp: &Expression) -> Result<(), Box<dyn Error>> {
+        self.generate_expression(stack, exp)?;
+        match op {
+            UnOp::Negation => self.add("neg %rax"),
+            UnOp::BitNot => self.add("not %rax"),
+            UnOp::LogicNot => {
+                self.add("cmp $0, %rax");
+                self.add("mov $0, %rax");
+                self.add("sete %al");
             }
         }
+        Ok(())
     }
-    Ok(())
-}
 
-fn generate_rel(exp: &parser::RelExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::RelExp::Shift(shift) => generate_shift(shift, stack, res)?,
-        parser::RelExp::Operator(op, l, r) => {
-            generate_rel(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_rel(r, stack, res)?;
-            res.push_str("pop %rcx\n");
-            res.push_str("cmp %rax, %rcx\n");
-            res.push_str("mov $0, %rax\n");
-            match op {
-                parser::RelationOp::LessThan => res.push_str("setl %al\n"),
-                parser::RelationOp::LessEqual => res.push_str("setle %al\n"),
-                parser::RelationOp::GreaterThan => res.push_str("setg %al\n"),
-                parser::RelationOp::GreaterEqual => res.push_str("setge %al\n"),
-            }
+    fn generate_binop(&mut self, stack: &mut StackFrame, op: &BinOp, l: &Expression, r: &Expression) -> Result<(), Box<dyn Error>> {
+        match op {
+            BinOp::Addition => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("add %rcx, %rax");
+            },
+            BinOp::Subtraction => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("mov %rax, %rcx");
+                self.add("pop %rax");
+                self.add("sub %rcx, %rax");
+            },
+            BinOp::Multiplication => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("imul %rcx, %rax");
+            },
+            BinOp::Division => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("mov %rax, %rcx");
+                self.add("pop %rax");
+                self.add("cqo");
+                self.add("idiv %rcx");
+            },
+            BinOp::Modulus => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("mov %rax, %rcx");
+                self.add("pop %rax");
+                self.add("cqo");
+                self.add("idiv %rcx");
+                self.add("mov %rdx, %rax");
+            },
+            BinOp::Equal => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("cmp %rax, %rcx");
+                self.add("mov $0, %rax");
+                self.add("sete %al");
+            },
+            BinOp::NotEqual => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("cmp %rax, %rcx");
+                self.add("mov $0, %rax");
+                self.add("setne %al");
+            },
+            BinOp::LessThan => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("cmp %rax, %rcx");
+                self.add("mov $0, %rax");
+                self.add("setl %al");
+            },
+            BinOp::LessThanOrEqual => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("cmp %rax, %rcx");
+                self.add("mov $0, %rax");
+                self.add("setle %al");
+            },
+            BinOp::GreaterThan => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("cmp %rax, %rcx");
+                self.add("mov $0, %rax");
+                self.add("setg %al");
+            },
+            BinOp::GreaterThanOrEqual => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("cmp %rax, %rcx");
+                self.add("mov $0, %rax");
+                self.add("setge %al");
+            },
+            BinOp::LogicOr => {
+                let l_false = self.next_id();
+                let l_true = self.next_id();
+                self.generate_expression(stack, l)?;
+                self.add("cmp $0, %rax");
+                self.add(&format!("je {}", l_false));
+                self.add("mov $1, %rax");
+                self.add(&format!("jmp {}", l_true));
+                self.add(&format!("{}:", l_false));
+                self.generate_expression(stack, r)?;
+                self.add("cmp $0, %rax");
+                self.add("mov $0, %rax");
+                self.add("setne %al");
+                self.add(&format!("{}:", l_true));
+            },
+            BinOp::LogicAnd => {
+                let l_false = self.next_id();
+                let l_true = self.next_id();
+                self.generate_expression(stack, l)?;
+                self.add("cmp $0, %rax");
+                self.add(&format!("jne {}", l_true));
+                self.add("mov $0, %rax");
+                self.add(&format!("jmp {}", l_false));
+                self.add(&format!("{}:", l_true));
+                self.generate_expression(stack, r)?;
+                self.add("cmp $0, %rax");
+                self.add("mov $0, %rax");
+                self.add("setne %al");
+                self.add(&format!("{}:", l_false));
+            },
+            BinOp::BitwiseOr => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("or %rcx, %rax");
+            },
+            BinOp::BitwiseAnd => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("and %rcx, %rax");
+            },
+            BinOp::BitwiseXor => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("pop %rcx");
+                self.add("xor %rcx, %rax");
+            },
+            BinOp::ShiftLeft => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("mov %rax, %rcx");
+                self.add("pop %rax");
+                self.add("sal %rcx, %rax");
+            },
+            BinOp::ShiftRight => {
+                self.generate_expression(stack, l)?;
+                self.add("push %rax");
+                self.generate_expression(stack, r)?;
+                self.add("mov %rax, %rcx");
+                self.add("pop %rax");
+                self.add("sar %rcx, %rax");
+            },
+            BinOp::Comma => {
+                self.generate_expression(stack, l)?;
+                self.generate_expression(stack, r)?;
+            },
+        }
+
+        Ok(())
+    }
+
+    fn generate_ternary(&mut self, stack: &mut StackFrame, cond: &Expression, if_body: &Expression, else_body: &Expression) -> Result<(), Box<dyn Error>> {
+        let falseid = self.next_id();
+        let postid = self.next_id();
+
+        self.generate_expression(stack, cond)?;
+        self.add("cmp $0, %rax");
+        self.add(&format!("je {}", falseid));
+        self.generate_expression(stack, if_body)?;
+        self.add(&format!("jmp {}", postid));
+        self.add(&format!("{}:", falseid));
+        self.generate_expression(stack, else_body)?;
+        self.add(&format!("{}:", postid));
+
+        Ok(())
+    }
+
+    fn check_returns(&mut self, statements: &Vec<Statement>) -> bool {
+        match statements.last() {
+            Some(x) => self.check_statement_returns(x),
+            None => false,
         }
     }
-    Ok(())
-}
 
-fn generate_shift(exp: &parser::ShiftExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::ShiftExp::Additive(additive) => generate_additive(additive, stack, res)?,
-        parser::ShiftExp::Operator(op, l, r) => {
-            generate_shift(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_shift(r, stack, res)?;
-            res.push_str("mov %rax, %rcx\n");
-            res.push_str("pop %rax\n");
-            match op {
-                parser::ShiftOp::LShift => res.push_str("sal %rcx, %rax\n"),
-                parser::ShiftOp::RShift => res.push_str("sar %rcx, %rax\n"),
-            }
-        }
-    }
-    Ok(())
-}
-
-fn generate_additive(exp: &parser::AdditiveExp, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match exp {
-        parser::AdditiveExp::Term(term) => generate_term(term, stack, res)?,
-        parser::AdditiveExp::Operator(op, l, r) => {
-            generate_additive(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_additive(r, stack, res)?;
-            match op {
-                parser::AdditiveOp::Add => {
-                    res.push_str("pop %rcx\n");
-                    res.push_str("add %rcx, %rax\n");
+    fn check_statement_returns(&mut self, statement: &Statement) -> bool {
+        match statement {
+            Statement::Return(_) => true,
+            Statement::If(_, if_body, opt) => {
+                let if_returns = self.check_statement_returns(if_body);
+                match opt {
+                    None => if_returns,
+                    Some(body) => if_returns && self.check_statement_returns(body),
                 }
-                parser::AdditiveOp::Sub => {
-                    res.push_str("mov %rax, %rcx\n");
-                    res.push_str("pop %rax\n");
-                    res.push_str("sub %rcx, %rax\n");
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn generate_term(term: &parser::Term, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match term {
-        parser::Term::Factor(factor) => generate_factor(factor, stack, res)?,
-        parser::Term::Operator(op, l, r) => {
-            generate_term(l, stack, res)?;
-            res.push_str("push %rax\n");
-            generate_term(r, stack, res)?;
-            match op {
-                parser::TermOp::Mult => {
-                    res.push_str("pop %rcx\n");
-                    res.push_str("imul %rcx, %rax\n");
-                }
-                parser::TermOp::Div => {
-                    res.push_str("mov %rax, %rcx\n");
-                    res.push_str("pop %rax\n");
-                    res.push_str("cqo\n");
-                    res.push_str("idiv %rcx\n");
-                }
-                parser::TermOp::Mod => {
-                    res.push_str("mov %rax, %rcx\n");
-                    res.push_str("pop %rax\n");
-                    res.push_str("cqo\n");
-                    res.push_str("idiv %rcx\n");
-                    res.push_str("mov %rdx, %rax\n");
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn generate_factor(factor: &parser::Factor, stack: &mut StackFrame, res: &mut String) -> Result<(), String> {
-    match factor {
-        parser::Factor::Integer(i) => res.push_str(&format!("mov ${}, %rax\n", i)),
-        parser::Factor::Paren(exp) => generate_exp(exp, stack, res)?,
-        parser::Factor::Operator(op, exp) => {
-            match op {
-                parser::FactorOp::Negate => {
-                    generate_factor(exp, stack, res)?;
-                    res.push_str("neg %rax\n");
-                },
-                parser::FactorOp::BitNot => {
-                    generate_factor(exp, stack, res)?;
-                    res.push_str("not %rax\n")
-                },
-                parser::FactorOp::LogicalNot => {
-                    generate_factor(exp, stack, res)?;
-                    res.push_str("cmp $0, %rax\n");
-                    res.push_str("mov $0, %rax\n");
-                    res.push_str("sete %al\n");
-                },
-                parser::FactorOp::PreInc => {
-                    let offset = match **exp {
-                        parser::Factor::Variable(ref name) => stack.get_var(name)?,
-                        _ => panic!("Invalid increment"),
-                    };
-                    res.push_str(&format!("inc {}(%rbp)\n", offset));
-                    generate_factor(exp, stack, res)?;
-                }
-                parser::FactorOp::PreDec => {
-                    let offset = match **exp {
-                        parser::Factor::Variable(ref name) => stack.get_var(name)?,
-                        _ => panic!("Invalid decrement"),
-                    };
-                    res.push_str(&format!("dec {}(%rbp)\n", offset));
-                    generate_factor(exp, stack, res)?;
-                },
-            }
-        }
-        parser::Factor::Variable(name) => {
-            let offset = stack.get_var(name)?;
-            res.push_str(&format!("mov {}(%rbp), %rax\n", offset));
-        },
-    }
-    Ok(())
-}
-
-static mut COUNTER: i32 = 0;
-
-fn unique_id() -> String {
-    unsafe {
-        let ret = COUNTER;
-        COUNTER += 1;
-        format!("_{}", ret)
-    }
-}
-
-fn check_returns(item: &parser::BlockItem) -> bool {
-    match item {
-        parser::BlockItem::Declaration(_) => false,
-        parser::BlockItem::Statement(statement) => check_return_statement(&statement),
-    }
-}
-
-fn check_return_statement(statement: &parser::Statement) -> bool {
-    match statement {
-        parser::Statement::Expression(_) => false,
-        parser::Statement::Return(_) => true,
-        parser::Statement::If(_, t, f) => {
-            let t = check_return_statement(&t);
-            let f = match f {
-                Some(s) => check_return_statement(&s),
-                None => false,
-            };
-            t && f
+            },
+            Statement::Declaration(_, _) | Statement::Expression(_) => false,
         }
     }
 }
@@ -443,6 +356,7 @@ struct StackFrame {
     vars: HashMap<String, i32>,
     index: i32,
 }
+
 impl StackFrame {
     fn new() -> Self {
         StackFrame {
@@ -451,20 +365,20 @@ impl StackFrame {
         }
     }
 
-    fn new_var(&mut self, name: &String) -> Result<(), String> {
-        match self.vars.get(name) {
-            Some(_) => return Err(format!("cannot instantiate {} variable more than once", name)),
-            None => {}
+    fn add_var(&mut self, name: &str) -> Result<(), Box<dyn Error>> {
+        let name = name.to_string();
+        if let Some(_) = self.vars.get(&name) {
+            return Err(format!("Cannot instantiate variable {} more than once", name).into())
         }
-        self.vars.insert(name.to_string(), self.index);
+        self.vars.insert(name, self.index);
         self.index -= 8;
         Ok(())
     }
 
-    fn get_var(&self, name: &String) -> Result<i32, String> {
+    fn get_offset(&mut self, name: &str) -> Result<i32, Box<dyn Error>> {
         match self.vars.get(name) {
             Some(i) => Ok(*i),
-            None => Err(format!("{} has not been instantiated yet", name))
+            None => Err(format!("Variable with name {} has not been declared yet", name).into()),
         }
     }
 }

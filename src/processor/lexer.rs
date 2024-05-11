@@ -1,240 +1,136 @@
-const KEYWORDS: [&str; 4] = ["int", "return", "if", "else"];
+use super::token::*;
+use std::error::Error;
+use std::iter::Peekable;
+use std::str::Chars;
 
-pub fn lex(s: &str) -> Vec<Token> {
-    let mut tokens: Vec<Token> = Vec::new();
-    let mut iter = s.chars().peekable();
-    while let Some(char) = iter.next() {
-        match char {
-            '(' => tokens.push(Token::LParen),
-            ')' => tokens.push(Token::RParen),
-            '{' => tokens.push(Token::LBrace),
-            '}' => tokens.push(Token::RBrace),
-            '[' => tokens.push(Token::LBracket),
-            ']' => tokens.push(Token::RBracket),
-            ';' => tokens.push(Token::Semicolon),
-            ':' => tokens.push(Token::Colon),
-            '?' => tokens.push(Token::QuestionMark),
-            ',' => tokens.push(Token::Comma),
-            '~' => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitNot))),
-            '-' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Minus)));
-                },
-                Some('-') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Decrement)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Minus))),
-            },
-            '+' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Plus)));
-                },
-                Some('+') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Increment)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Plus))),
-            },
-            '*' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Mult)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Mult))),
-            },
-            '/' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Div)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Div))),
-            },
-            '!' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Basic(BasicOp::NotEqual)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::LogicalNot))),
-            },
-            '<' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Basic(BasicOp::LessEqual)));
-                },
-                Some('<') => {
-                    iter.next();
-                    match iter.peek() {
-                        Some('=') => {
-                            iter.next();
-                            tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::LShift)));
-                        },
-                        _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::LShift))),
-                    }
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::LessThan))),
-            },
-            '>' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Basic(BasicOp::GreaterEqual)));
-                },
-                Some('>') => {
-                    iter.next();
-                    match iter.peek() {
-                        Some('=') => {
-                            iter.next();
-                            tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::RShift)));
-                        },
-                        _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::RShift))),
-                    }
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::GreaterThan))),
-            },
-            '&' => match iter.peek() {
-                Some('&') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Basic(BasicOp::LogicalAnd)));
-                },
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::BitAnd)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitAnd))),
-            },
-            '|' => match iter.peek() {
-                Some('|') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Basic(BasicOp::LogicalOr)));
-                },
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::BitOr)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitOr))),
-            },
-            '%' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Mod)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::Mod))),
-            },
-            '^' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::BitXor)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Basic(BasicOp::BitXor))),
-            },
-            '=' => match iter.peek() {
-                Some('=') => {
-                    iter.next();
-                    tokens.push(Token::Operator(Operation::Basic(BasicOp::Equal)));
-                },
-                _ => tokens.push(Token::Operator(Operation::Assignment(AssignmentOp::Assign))),
-            },
-            ' ' | '\n' | '\r' | '\t' => {},
-            _ => {
-                if char.is_numeric() {
-                    let mut num = char.to_digit(10).unwrap() as i64;
-                    while let Some(&char) = iter.peek() {
-                        if char.is_numeric() {
-                            let digit = char.to_digit(10).unwrap() as i64;
-                            num = num * 10 + digit;
-                            iter.next();
-                        } else {
-                            break;
-                        }
-                    }
-                    tokens.push(Token::Integer(num));
-                }
-                else {
-                    let mut keyword = String::new();
-                    keyword.push(char);
-                    while let Some(&char) = iter.peek() {
-                        if char.is_alphanumeric() {
-                            keyword.push(char);
-                            iter.next();
-                        } else {
-                            break;
-                        }
-                    }
-                    if KEYWORDS.contains(&keyword.as_str()) {
-                        tokens.push(Token::Keyword(keyword));
-                    } else {
-                        tokens.push(Token::Identifier(keyword));
-                    }
-                }
-            }
+pub struct Lexer<'a> {
+    tokens: Vec<Token>,
+    iter: Peekable<Chars<'a>>,
+}
+
+impl<'a> Lexer<'a> {
+    fn new(source: &str) -> Lexer {
+        Lexer {
+            tokens: vec![],
+            iter: source.chars().peekable(),
         }
     }
-    tokens
-}
 
-#[derive(Debug)]
-pub enum Token {
-    LParen,
-    RParen,
-    LBrace,
-    RBrace,
-    LBracket,
-    RBracket,
-    Semicolon,
-    Colon,
-    Comma,
-    QuestionMark,
-    Keyword(String),
-    Identifier(String),
-    Integer(i64),
-    Operator(Operation),
-}
+    fn push(&mut self, token: Token) {
+        self.iter.next();
+        self.tokens.push(token);
+    }
 
-#[derive(Debug)]
-pub enum Operation {
-    Basic(BasicOp),
-    Assignment(AssignmentOp),
-}
+    fn add(&mut self, token: Token) {
+        self.tokens.push(token);
+    }
 
-#[derive(Debug)]
-pub enum BasicOp {
-    BitNot,
-    LogicalNot,
-    Plus,
-    Minus,
-    Mult,
-    Div,
-    Mod,
-    BitAnd,
-    BitOr,
-    BitXor,
-    LShift,
-    RShift,
-    Equal,
-    NotEqual,
-    LessThan,
-    LessEqual,
-    GreaterThan,
-    GreaterEqual,
-    LogicalAnd,
-    LogicalOr,
-}
+    fn peek(&mut self) -> Option<&char> {
+        self.iter.peek()
+    }
 
-#[derive(Debug)]
-pub enum AssignmentOp {
-    Assign,
-    Plus,
-    Increment,
-    Minus,
-    Decrement,
-    Mult,
-    Div,
-    Mod,
-    BitAnd,
-    BitOr,
-    BitXor,
-    LShift,
-    RShift,
+    fn next(&mut self) -> Option<char> {
+        self.iter.next()
+    }
+
+    fn drop(&mut self) {
+        self.iter.next();
+    }
+
+    fn get_string<F>(&mut self, cond: F) -> String
+    where
+        F: Fn(&char) -> bool,
+    {
+        let mut result = String::new();
+        while let Some(&c) = self.iter.peek() {
+            if cond(&c) {
+                result.push(c);
+                self.iter.next();
+            } else {
+                break;
+            }
+        }
+        result
+    }
+
+    pub fn lex(s: &str) -> Result<Vec<Token>, Box<dyn Error>> {
+        let mut lexer = Lexer::new(s);
+        while let Some(&c) = lexer.peek() {
+            match c {
+                '(' => lexer.push(Token::OpenParenthesis),
+                ')' => lexer.push(Token::CloseParenthesis),
+                '{' => lexer.push(Token::OpenBrace),
+                '}' => lexer.push(Token::CloseBrace),
+                '[' => lexer.push(Token::OpenBracket),
+                ']' => lexer.push(Token::CloseBracket),
+                ';' => lexer.push(Token::Semicolon),
+                ':' => lexer.push(Token::Colon),
+                '?' => lexer.push(Token::QuestionMark),
+                '~' => lexer.push(Token::BitNot),
+                ',' => lexer.push(Token::Comma),
+                ' ' | '\t' | '\n' | '\r' => lexer.drop(),
+                'a'..='z' | 'A'..='Z' => {
+                    let word: &str = &lexer.get_string(|x| x.is_alphanumeric());
+                    match word {
+                        "int" => lexer.add(Token::Keyword(Keyword::Int)),
+                        "return" => lexer.add(Token::Keyword(Keyword::Return)),
+                        "if" => lexer.add(Token::Keyword(Keyword::If)),
+                        "else" => lexer.add(Token::Keyword(Keyword::Else)),
+                        _ => lexer.add(Token::Identifier(word.to_string())),
+                    }
+                }
+                '0'..='9' => {
+                    let num = lexer.get_string(|x| x.is_numeric());
+                    let num = num.parse::<u32>()?;
+                    lexer.add(Token::Integer(num));
+                }
+                other => match (lexer.next().unwrap(), lexer.peek()) {
+                    ('&', Some(&'&')) => lexer.push(Token::LogicAnd),
+                    ('|', Some(&'|')) => lexer.push(Token::LogicOr),
+                    ('<', Some(&'=')) => lexer.push(Token::LessThanOrEqual),
+                    ('>', Some(&'=')) => lexer.push(Token::GreaterThanOrEqual),
+                    ('=', Some(&'=')) => lexer.push(Token::Equal),
+                    ('!', Some(&'=')) => lexer.push(Token::NotEqual),
+                    ('+', Some(&'=')) => lexer.push(Token::AssignAdd),
+                    ('-', Some(&'=')) => lexer.push(Token::AssignSub),
+                    ('*', Some(&'=')) => lexer.push(Token::AssignMult),
+                    ('/', Some(&'=')) => lexer.push(Token::AssignDiv),
+                    ('%', Some(&'=')) => lexer.push(Token::AssignMod),
+                    ('&', Some(&'=')) => lexer.push(Token::AssignBitAnd),
+                    ('|', Some(&'=')) => lexer.push(Token::AssignBitOr),
+                    ('^', Some(&'=')) => lexer.push(Token::AssignBitXor),
+                    ('+', Some(&'+')) => lexer.push(Token::Increment),
+                    ('-', Some(&'-')) => lexer.push(Token::Decrement),
+                    ('!', _) => lexer.add(Token::LogicNot),
+                    ('&', _) => lexer.add(Token::BitwiseAnd),
+                    ('|', _) => lexer.add(Token::BitwiseOr),
+                    ('=', _) => lexer.add(Token::Assign),
+                    ('+', _) => lexer.add(Token::Addition),
+                    ('-', _) => lexer.add(Token::Negation),
+                    ('*', _) => lexer.add(Token::Multiplication),
+                    ('/', _) => lexer.add(Token::Division),
+                    ('%', _) => lexer.add(Token::Modulus),
+                    ('^', _) => lexer.add(Token::BitwiseXor),
+                    ('<', Some(&'<')) => {
+                        lexer.next();
+                        match lexer.peek() {
+                            Some(&'=') => lexer.push(Token::AssignShiftLeft),
+                            _ => lexer.add(Token::ShiftLeft),
+                        }
+                    }
+                    ('<', _) => lexer.add(Token::LessThan),
+                    ('>', Some(&'>')) => {
+                        lexer.next();
+                        match lexer.peek() {
+                            Some(&'=') => lexer.push(Token::AssignShiftRight),
+                            _ => lexer.add(Token::ShiftRight),
+                        }
+                    }
+                    ('>', _) => lexer.add(Token::GreaterThan),
+                    _ => return Err(format!("Unknown symbol {:?}", other).into()),
+                },
+            }
+        }
+        Ok(lexer.tokens)
+    }
 }

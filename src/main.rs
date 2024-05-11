@@ -21,19 +21,15 @@ fn main() {
 }
 
 fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let tokens = lexer::lex(&fs::read_to_string(&config.filepath)?);
-    let tokens2 = lexer2::lex(&fs::read_to_string(&config.filepath)?)?;
+    let tokens = lexer::Lexer::lex(&fs::read_to_string(&config.filepath)?)?;
     if config.debug { tokens.iter().for_each(|token| println!("{:?}", token)) }
-    if config.debug { tokens2.iter().for_each(|token| println!("{:?}", token)) }
     
-    let ast = parser::parse(&tokens)?;
-    let ast2 = parser2::parse(tokens2)?;
+    let ast = parser::Parser::parse(tokens)?;
     if config.debug { println!("{:#?}", ast) }
-    if config.debug { println!("{:#?}", ast2) }
 
-    let assembly = generator::generate(&ast)?;
+    let assembly2 = generator::Generator::generate(&ast)?;
 
-    fs::File::create("assembly.s")?.write_all(&assembly.as_bytes())?;
+    fs::File::create("assembly.s")?.write_all(&assembly2.as_bytes())?;
     process::Command::new("gcc").args(["assembly.s", "-o", &config.filename]).output()?;
 
     if !config.debug {
