@@ -199,8 +199,8 @@ impl Parser {
                             op,
                             Box::new(Expression::Var(varname.clone())),
                             Box::new(self.parse_expression()?),
-                            )),
-                            );
+                    )),
+                );
                 Ok(exp)
             },
             _ => Ok(var),
@@ -290,11 +290,41 @@ impl Parser {
             (Some(Token::Integer(i)), _) => Ok(Expression::Num(i)),
             (Some(Token::Identifier(ref name)), Some(Token::Increment)) => {
                 self.drop();
-                todo!()
+                Ok(Expression::BinOp(
+                    BinOp::Comma,
+                    Box::new(Expression::Assign(
+                        name.clone(),
+                        Box::new(Expression::BinOp(
+                            BinOp::Addition,
+                            Box::new(Expression::Var(name.clone())),
+                            Box::new(Expression::Num(1)),
+                        )),
+                    )),
+                    Box::new(Expression::BinOp(
+                        BinOp::Subtraction,
+                        Box::new(Expression::Var(name.clone())),
+                        Box::new(Expression::Num(1)),
+                    )),
+                ))
             }
             (Some(Token::Identifier(ref name)), Some(Token::Decrement)) => {
                 self.drop();
-                todo!()
+                Ok(Expression::BinOp(
+                    BinOp::Comma,
+                    Box::new(Expression::Assign(
+                        name.clone(),
+                        Box::new(Expression::BinOp(
+                            BinOp::Subtraction,
+                            Box::new(Expression::Var(name.clone())),
+                            Box::new(Expression::Num(1)),
+                        )),
+                    )),
+                    Box::new(Expression::BinOp(
+                        BinOp::Addition,
+                        Box::new(Expression::Var(name.clone())),
+                        Box::new(Expression::Num(1)),
+                    )),
+                ))
             }
             (Some(Token::Increment), Some(Token::Identifier(_))) => {
                 let name = self.get_identifier()?;
@@ -302,8 +332,8 @@ impl Parser {
                     name.clone(),
                     Box::new(Expression::BinOp(
                         BinOp::Addition,
+                        Box::new(Expression::Var(name.clone())),
                         Box::new(Expression::Num(1)),
-                        Box::new(Expression::Var(name)),
                     )),
                 ))
             }
@@ -313,8 +343,8 @@ impl Parser {
                     name.clone(),
                     Box::new(Expression::BinOp(
                         BinOp::Subtraction,
+                        Box::new(Expression::Var(name.clone())),
                         Box::new(Expression::Num(1)),
-                        Box::new(Expression::Var(name)),
                     )),
                 ))
             }
