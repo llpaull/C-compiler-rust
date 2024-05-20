@@ -68,7 +68,11 @@ impl Generator {
         Ok(())
     }
 
-    fn generate_statement(&mut self, stack: &mut StackFrame, statement: &Statement) -> Result<(), Box<dyn Error>> {
+    fn generate_statement(
+        &mut self,
+        stack: &mut StackFrame,
+        statement: &Statement,
+    ) -> Result<(), Box<dyn Error>> {
         match statement {
             Statement::Expression(exp) => self.generate_expression(stack, exp)?,
             Statement::Return(exp) => {
@@ -76,7 +80,7 @@ impl Generator {
                 self.add("mov %rbp, %rsp");
                 self.add("pop %rbp");
                 self.add("ret");
-            },
+            }
             Statement::Declaration(name, opt) => {
                 stack.add_var(name)?;
                 match opt {
@@ -86,14 +90,22 @@ impl Generator {
                         self.add("push %rax");
                     }
                 }
-            },
-            Statement::If(cond, if_body, opt) => self.generate_if_statement(stack, cond, if_body, opt)?,
+            }
+            Statement::If(cond, if_body, opt) => {
+                self.generate_if_statement(stack, cond, if_body, opt)?
+            }
         }
 
         Ok(())
     }
 
-    fn generate_if_statement(&mut self, stack: &mut StackFrame, cond: &Expression, if_body: &Statement, opt: &Option<Box<Statement>>) -> Result<(), Box<dyn Error>> {
+    fn generate_if_statement(
+        &mut self,
+        stack: &mut StackFrame,
+        cond: &Expression,
+        if_body: &Statement,
+        opt: &Option<Box<Statement>>,
+    ) -> Result<(), Box<dyn Error>> {
         self.generate_expression(stack, cond)?;
         self.add("cmp $0, %rax");
         let falseid = self.next_id();
@@ -112,22 +124,35 @@ impl Generator {
         Ok(())
     }
 
-    fn generate_expression(&mut self, stack: &mut StackFrame, expression: &Expression) -> Result<(), Box<dyn Error>> {
+    fn generate_expression(
+        &mut self,
+        stack: &mut StackFrame,
+        expression: &Expression,
+    ) -> Result<(), Box<dyn Error>> {
         match expression {
             Expression::Num(i) => self.add(&format!("mov ${}, %rax", i)),
-            Expression::Var(name) => self.add(&format!("mov {}(%rbp), %rax", stack.get_offset(name)?)),
+            Expression::Var(name) => {
+                self.add(&format!("mov {}(%rbp), %rax", stack.get_offset(name)?))
+            }
             Expression::UnOp(op, exp) => self.generate_unop(stack, op, exp)?,
             Expression::BinOp(op, l, r) => self.generate_binop(stack, op, l, r)?,
             Expression::Assign(name, exp) => {
                 self.generate_expression(stack, exp)?;
                 self.add(&format!("mov %rax, {}(%rbp)", stack.get_offset(name)?));
-            },
-            Expression::Ternary(cond, if_body, else_body) => self.generate_ternary(stack, cond, if_body, else_body)?,
+            }
+            Expression::Ternary(cond, if_body, else_body) => {
+                self.generate_ternary(stack, cond, if_body, else_body)?
+            }
         }
         Ok(())
     }
 
-    fn generate_unop(&mut self, stack: &mut StackFrame, op: &UnOp, exp: &Expression) -> Result<(), Box<dyn Error>> {
+    fn generate_unop(
+        &mut self,
+        stack: &mut StackFrame,
+        op: &UnOp,
+        exp: &Expression,
+    ) -> Result<(), Box<dyn Error>> {
         self.generate_expression(stack, exp)?;
         match op {
             UnOp::Negation => self.add("neg %rax"),
@@ -141,7 +166,13 @@ impl Generator {
         Ok(())
     }
 
-    fn generate_binop(&mut self, stack: &mut StackFrame, op: &BinOp, l: &Expression, r: &Expression) -> Result<(), Box<dyn Error>> {
+    fn generate_binop(
+        &mut self,
+        stack: &mut StackFrame,
+        op: &BinOp,
+        l: &Expression,
+        r: &Expression,
+    ) -> Result<(), Box<dyn Error>> {
         match op {
             BinOp::Addition => {
                 self.generate_expression(stack, l)?;
@@ -149,7 +180,7 @@ impl Generator {
                 self.generate_expression(stack, r)?;
                 self.add("pop %rcx");
                 self.add("add %rcx, %rax");
-            },
+            }
             BinOp::Subtraction => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -157,14 +188,14 @@ impl Generator {
                 self.add("mov %rax, %rcx");
                 self.add("pop %rax");
                 self.add("sub %rcx, %rax");
-            },
+            }
             BinOp::Multiplication => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
                 self.generate_expression(stack, r)?;
                 self.add("pop %rcx");
                 self.add("imul %rcx, %rax");
-            },
+            }
             BinOp::Division => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -173,7 +204,7 @@ impl Generator {
                 self.add("pop %rax");
                 self.add("cqo");
                 self.add("idiv %rcx");
-            },
+            }
             BinOp::Modulus => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -183,7 +214,7 @@ impl Generator {
                 self.add("cqo");
                 self.add("idiv %rcx");
                 self.add("mov %rdx, %rax");
-            },
+            }
             BinOp::Equal => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -192,7 +223,7 @@ impl Generator {
                 self.add("cmp %rax, %rcx");
                 self.add("mov $0, %rax");
                 self.add("sete %al");
-            },
+            }
             BinOp::NotEqual => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -201,7 +232,7 @@ impl Generator {
                 self.add("cmp %rax, %rcx");
                 self.add("mov $0, %rax");
                 self.add("setne %al");
-            },
+            }
             BinOp::LessThan => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -210,7 +241,7 @@ impl Generator {
                 self.add("cmp %rax, %rcx");
                 self.add("mov $0, %rax");
                 self.add("setl %al");
-            },
+            }
             BinOp::LessThanOrEqual => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -219,7 +250,7 @@ impl Generator {
                 self.add("cmp %rax, %rcx");
                 self.add("mov $0, %rax");
                 self.add("setle %al");
-            },
+            }
             BinOp::GreaterThan => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -228,7 +259,7 @@ impl Generator {
                 self.add("cmp %rax, %rcx");
                 self.add("mov $0, %rax");
                 self.add("setg %al");
-            },
+            }
             BinOp::GreaterThanOrEqual => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -237,7 +268,7 @@ impl Generator {
                 self.add("cmp %rax, %rcx");
                 self.add("mov $0, %rax");
                 self.add("setge %al");
-            },
+            }
             BinOp::LogicOr => {
                 let l_false = self.next_id();
                 let l_true = self.next_id();
@@ -252,7 +283,7 @@ impl Generator {
                 self.add("mov $0, %rax");
                 self.add("setne %al");
                 self.add(&format!("{}:", l_true));
-            },
+            }
             BinOp::LogicAnd => {
                 let l_false = self.next_id();
                 let l_true = self.next_id();
@@ -267,28 +298,28 @@ impl Generator {
                 self.add("mov $0, %rax");
                 self.add("setne %al");
                 self.add(&format!("{}:", l_false));
-            },
+            }
             BinOp::BitwiseOr => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
                 self.generate_expression(stack, r)?;
                 self.add("pop %rcx");
                 self.add("or %rcx, %rax");
-            },
+            }
             BinOp::BitwiseAnd => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
                 self.generate_expression(stack, r)?;
                 self.add("pop %rcx");
                 self.add("and %rcx, %rax");
-            },
+            }
             BinOp::BitwiseXor => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
                 self.generate_expression(stack, r)?;
                 self.add("pop %rcx");
                 self.add("xor %rcx, %rax");
-            },
+            }
             BinOp::ShiftLeft => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -296,7 +327,7 @@ impl Generator {
                 self.add("mov %rax, %rcx");
                 self.add("pop %rax");
                 self.add("sal %rcx, %rax");
-            },
+            }
             BinOp::ShiftRight => {
                 self.generate_expression(stack, l)?;
                 self.add("push %rax");
@@ -304,17 +335,23 @@ impl Generator {
                 self.add("mov %rax, %rcx");
                 self.add("pop %rax");
                 self.add("sar %rcx, %rax");
-            },
+            }
             BinOp::Comma => {
                 self.generate_expression(stack, l)?;
                 self.generate_expression(stack, r)?;
-            },
+            }
         }
 
         Ok(())
     }
 
-    fn generate_ternary(&mut self, stack: &mut StackFrame, cond: &Expression, if_body: &Expression, else_body: &Expression) -> Result<(), Box<dyn Error>> {
+    fn generate_ternary(
+        &mut self,
+        stack: &mut StackFrame,
+        cond: &Expression,
+        if_body: &Expression,
+        else_body: &Expression,
+    ) -> Result<(), Box<dyn Error>> {
         let falseid = self.next_id();
         let postid = self.next_id();
 
@@ -346,7 +383,7 @@ impl Generator {
                     None => if_returns,
                     Some(body) => if_returns && self.check_statement_returns(body),
                 }
-            },
+            }
             Statement::Declaration(_, _) | Statement::Expression(_) => false,
         }
     }
@@ -368,7 +405,7 @@ impl StackFrame {
     fn add_var(&mut self, name: &str) -> Result<(), Box<dyn Error>> {
         let name = name.to_string();
         if let Some(_) = self.vars.get(&name) {
-            return Err(format!("Cannot instantiate variable {} more than once", name).into())
+            return Err(format!("Cannot instantiate variable {} more than once", name).into());
         }
         self.vars.insert(name, self.index);
         self.index -= 8;

@@ -1,5 +1,5 @@
-use std::error::Error;
 use super::ast::{BinOp, UnOp};
+use std::error::Error;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Token {
@@ -103,7 +103,11 @@ impl IntoResult<UnOp> for Token {
             Token::Negation => Ok(UnOp::Negation),
             Token::BitNot => Ok(UnOp::BitNot),
             Token::LogicNot => Ok(UnOp::LogicNot),
-            err => Err(format!("Unsupported token {:?}, expected unary operator !, ~, or -", err).into()),
+            err => Err(format!(
+                "Unsupported token {:?}, expected unary operator !, ~, or -",
+                err
+            )
+            .into()),
         }
     }
 }

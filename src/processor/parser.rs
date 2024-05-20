@@ -170,7 +170,7 @@ impl Parser {
             _ => self.parse_conditional_expression(),
         }
     }
-    
+
     fn parse_assign(&mut self) -> Result<Expression, Box<dyn Error>> {
         let var = self.parse_conditional_expression()?;
         match var {
@@ -188,21 +188,24 @@ impl Parser {
                     Some(Token::AssignBitXor) => BinOp::BitwiseXor,
                     Some(Token::Assign) => {
                         self.drop();
-                        return Ok(Expression::Assign(varname.clone(), Box::new(self.parse_expression()?)));
-                    },
+                        return Ok(Expression::Assign(
+                            varname.clone(),
+                            Box::new(self.parse_expression()?),
+                        ));
+                    }
                     _ => return Ok(var),
                 };
                 self.drop();
                 let exp = Expression::Assign(
                     varname.clone(),
                     Box::new(Expression::BinOp(
-                            op,
-                            Box::new(Expression::Var(varname.clone())),
-                            Box::new(self.parse_expression()?),
+                        op,
+                        Box::new(Expression::Var(varname.clone())),
+                        Box::new(self.parse_expression()?),
                     )),
                 );
                 Ok(exp)
-            },
+            }
             _ => Ok(var),
         }
     }
@@ -364,7 +367,11 @@ impl Parser {
         }
     }
 
-    fn parse_generic_expression<F>(&mut self, matching: &[Token], next: F,) -> Result<Expression, Box<dyn Error>>
+    fn parse_generic_expression<F>(
+        &mut self,
+        matching: &[Token],
+        next: F,
+    ) -> Result<Expression, Box<dyn Error>>
     where
         F: Fn(&mut Parser) -> Result<Expression, Box<dyn Error>>,
     {
