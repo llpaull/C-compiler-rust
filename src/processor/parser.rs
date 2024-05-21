@@ -118,6 +118,12 @@ impl Parser {
                 self.drop();
                 self.parse_if_statement()
             }
+            Some(Token::OpenBrace) => {
+                self.drop();
+                let ret = self.parse_compound_statement();
+                self.match_token(Token::CloseBrace)?;
+                ret
+            }
             Some(_) => {
                 let exp = self.parse_expression()?;
                 self.match_token(Token::Semicolon)?;
@@ -146,14 +152,38 @@ impl Parser {
         let condition = self.parse_expression()?;
         self.match_token(Token::CloseParenthesis)?;
         let if_body = Box::new(self.parse_statement()?);
+
+        match *if_body {
+            Statement::Declaration(_, _) => return Err("cannot have variable declaration inside unscoped if statement".into()),
+            _ => {},
+        }
+
         match self.peek() {
             Some(Token::Keyword(Keyword::Else)) => {
                 self.drop();
                 let else_body = Box::new(self.parse_statement()?);
+
+                match *else_body {
+                    Statement::Declaration(_, _) => return Err("cannot have variable declaration inside unscoped else statement".into()),
+                    _ => {},
+                }
+
                 Ok(Statement::If(condition, if_body, Some(else_body)))
             }
             _ => Ok(Statement::If(condition, if_body, None)),
         }
+    }
+
+    fn parse_compound_statement(&mut self) -> Result<Statement, Box<dyn Error>> {
+        let mut statements = vec![];
+        while let Some(token) = self.peek() {
+            match *token {
+                Token::CloseBrace => break,
+                _ => statements.push(self.parse_statement()?),
+            }
+        }
+
+        Ok(Statement::Compound(statements))
     }
 
     fn parse_expression(&mut self) -> Result<Expression, Box<dyn Error>> {

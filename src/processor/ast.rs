@@ -15,6 +15,7 @@ pub enum Statement {
     Return(Expression),
     Expression(Expression),
     If(Expression, Box<Statement>, Option<Box<Statement>>),
+    Compound(Vec<Statement>),
 }
 
 #[derive(Debug)]

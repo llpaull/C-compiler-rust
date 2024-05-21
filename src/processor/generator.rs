@@ -1,5 +1,5 @@
 use super::ast::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 
 pub struct Generator {
@@ -93,6 +93,17 @@ impl Generator {
             }
             Statement::If(cond, if_body, opt) => {
                 self.generate_if_statement(stack, cond, if_body, opt)?
+            }
+            Statement::Compound(list) => {
+                let mut stack_clone = stack.clone();
+                list.iter()
+                    .try_for_each(|x| self.generate_statement(&mut stack_clone, x))?;
+                let mut i = 0;
+                let size = stack_clone.scope_size();
+                while i < size {
+                    self.add("pop %rcx");
+                    i += 1;
+                }
             }
         }
 
@@ -385,29 +396,43 @@ impl Generator {
                 }
             }
             Statement::Declaration(_, _) | Statement::Expression(_) => false,
+            Statement::Compound(list) => list.iter().any(|x| self.check_statement_returns(x)),
         }
     }
 }
 
 struct StackFrame {
     vars: HashMap<String, i32>,
+    scope: HashSet<String>,
     index: i32,
+}
+
+impl Clone for StackFrame {
+    fn clone_from(&mut self, source: &Self) {
+        *self = source.clone()
+    }
+
+    fn clone(&self) -> Self {
+        StackFrame { vars: self.vars.clone(), scope: HashSet::new(), index: self.index }
+    }
 }
 
 impl StackFrame {
     fn new() -> Self {
         StackFrame {
             vars: HashMap::new(),
+            scope: HashSet::new(),
             index: -8,
         }
     }
 
     fn add_var(&mut self, name: &str) -> Result<(), Box<dyn Error>> {
         let name = name.to_string();
-        if let Some(_) = self.vars.get(&name) {
+        if let Some(_) = self.scope.get(&name) {
             return Err(format!("Cannot instantiate variable {} more than once", name).into());
         }
-        self.vars.insert(name, self.index);
+        self.vars.insert(name.clone(), self.index);
+        self.scope.insert(name);
         self.index -= 8;
         Ok(())
     }
@@ -417,5 +442,9 @@ impl StackFrame {
             Some(i) => Ok(*i),
             None => Err(format!("Variable with name {} has not been declared yet", name).into()),
         }
+    }
+
+    fn scope_size(&mut self) -> usize {
+        self.scope.len()
     }
 }
