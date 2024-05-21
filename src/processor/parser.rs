@@ -104,9 +104,13 @@ impl Parser {
         match self.peek() {
             Some(Token::Keyword(Keyword::Return)) => {
                 self.drop();
-                let ret = Statement::Return(self.parse_expression()?);
+                let exp = self.parse_expression()?;
+                match exp {
+                    Expression::Null => return Err("Cannot return nothing, for now".into()),
+                    _ => {}
+                }
                 self.match_token(Token::Semicolon)?;
-                Ok(ret)
+                Ok(Statement::Return(exp))
             }
             Some(Token::Keyword(Keyword::Int)) => {
                 self.drop();
@@ -123,6 +127,73 @@ impl Parser {
                 let ret = self.parse_compound_statement();
                 self.match_token(Token::CloseBrace)?;
                 ret
+            }
+            Some(Token::Keyword(Keyword::For)) => {
+                self.drop();
+                self.match_token(Token::OpenParenthesis)?;
+                let declaration = self.peek_match_token(Token::Keyword(Keyword::Int)).is_ok();
+
+                if declaration {
+                    self.drop();
+                    let decl = self.parse_declaration()?;
+                    match decl {
+                        Statement::Declaration(_, _) => {}
+                        _ => {
+                            return Err(
+                                format!("Declaration not a declaration, instead {:?}", decl).into()
+                            )
+                        }
+                    }
+                        self.match_token(Token::Semicolon)?;
+                    let cond = self.parse_expression()?;
+                    self.match_token(Token::Semicolon)?;
+                    let post = self.parse_expression()?;
+                    self.match_token(Token::CloseParenthesis)?;
+                    let body = self.parse_statement()?;
+                    Ok(Statement::ForDecl(
+                        Box::new(decl),
+                        cond,
+                        post,
+                        Box::new(body),
+                    ))
+                } else {
+                    let exp = self.parse_expression()?;
+                    self.match_token(Token::Semicolon)?;
+                    let cond = self.parse_expression()?;
+                    self.match_token(Token::Semicolon)?;
+                    let post = self.parse_expression()?;
+                    self.match_token(Token::CloseParenthesis)?;
+                    let body = self.parse_statement()?;
+                    Ok(Statement::For(exp, cond, post, Box::new(body)))
+                }
+            }
+            Some(Token::Keyword(Keyword::While)) => {
+                self.drop();
+                self.match_token(Token::OpenParenthesis)?;
+                let exp = self.parse_expression()?;
+                self.match_token(Token::CloseParenthesis)?;
+                let body = self.parse_statement()?;
+                Ok(Statement::While(exp, Box::new(body)))
+            }
+            Some(Token::Keyword(Keyword::Do)) => {
+                self.drop();
+                let body = self.parse_statement()?;
+                self.match_token(Token::Keyword(Keyword::While))?;
+                self.match_token(Token::OpenParenthesis)?;
+                let exp = self.parse_expression()?;
+                self.match_token(Token::CloseParenthesis)?;
+                self.match_token(Token::Semicolon)?;
+                Ok(Statement::Do(Box::new(body), exp))
+            }
+            Some(Token::Keyword(Keyword::Break)) => {
+                self.drop();
+                self.match_token(Token::Semicolon)?;
+                Ok(Statement::Break)
+            }
+            Some(Token::Keyword(Keyword::Continue)) => {
+                self.drop();
+                self.match_token(Token::Semicolon)?;
+                Ok(Statement::Continue)
             }
             Some(_) => {
                 let exp = self.parse_expression()?;
@@ -154,8 +225,10 @@ impl Parser {
         let if_body = Box::new(self.parse_statement()?);
 
         match *if_body {
-            Statement::Declaration(_, _) => return Err("cannot have variable declaration inside unscoped if statement".into()),
-            _ => {},
+            Statement::Declaration(_, _) => {
+                return Err("cannot have variable declaration inside unscoped if statement".into())
+            }
+            _ => {}
         }
 
         match self.peek() {
@@ -164,8 +237,13 @@ impl Parser {
                 let else_body = Box::new(self.parse_statement()?);
 
                 match *else_body {
-                    Statement::Declaration(_, _) => return Err("cannot have variable declaration inside unscoped else statement".into()),
-                    _ => {},
+                    Statement::Declaration(_, _) => {
+                        return Err(
+                            "cannot have variable declaration inside unscoped else statement"
+                                .into(),
+                        )
+                    }
+                    _ => {}
                 }
 
                 Ok(Statement::If(condition, if_body, Some(else_body)))
@@ -187,6 +265,12 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expression, Box<dyn Error>> {
+        if let Ok(_) = self.peek_match_token(Token::Semicolon) {
+            return Ok(Expression::Null);
+        }
+        if let Ok(_) = self.peek_match_token(Token::CloseParenthesis) {
+            return Ok(Expression::Null);
+        }
         self.parse_comma_expression()
     }
 

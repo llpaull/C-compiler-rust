@@ -64,6 +64,11 @@ pub enum Keyword {
     Return,
     If,
     Else,
+    For,
+    While,
+    Do,
+    Break,
+    Continue,
 }
 
 pub trait IntoResult<T>: Sized {

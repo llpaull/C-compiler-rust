@@ -76,6 +76,11 @@ impl<'a> Lexer<'a> {
                         "return" => lexer.add(Token::Keyword(Keyword::Return)),
                         "if" => lexer.add(Token::Keyword(Keyword::If)),
                         "else" => lexer.add(Token::Keyword(Keyword::Else)),
+                        "for" => lexer.add(Token::Keyword(Keyword::For)),
+                        "while" => lexer.add(Token::Keyword(Keyword::While)),
+                        "do" => lexer.add(Token::Keyword(Keyword::Do)),
+                        "break" => lexer.add(Token::Keyword(Keyword::Break)),
+                        "continue" => lexer.add(Token::Keyword(Keyword::Continue)),
                         _ => lexer.add(Token::Identifier(word.to_string())),
                     }
                 }

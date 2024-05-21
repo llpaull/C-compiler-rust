@@ -16,6 +16,12 @@ pub enum Statement {
     Expression(Expression),
     If(Expression, Box<Statement>, Option<Box<Statement>>),
     Compound(Vec<Statement>),
+    For(Expression, Expression, Expression, Box<Statement>),
+    ForDecl(Box<Statement>, Expression, Expression, Box<Statement>),
+    While(Expression, Box<Statement>),
+    Do(Box<Statement>, Expression),
+    Break,
+    Continue,
 }
 
 #[derive(Debug)]
@@ -26,6 +32,7 @@ pub enum Expression {
     BinOp(BinOp, Box<Expression>, Box<Expression>),
     Assign(String, Box<Expression>),
     Ternary(Box<Expression>, Box<Expression>, Box<Expression>),
+    Null,
 }
 
 #[derive(Debug)]
