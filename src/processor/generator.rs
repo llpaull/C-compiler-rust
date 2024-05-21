@@ -98,12 +98,7 @@ impl Generator {
                 let mut stack_clone = stack.clone();
                 list.iter()
                     .try_for_each(|x| self.generate_statement(&mut stack_clone, x))?;
-                let mut i = 0;
-                let size = stack_clone.scope_size();
-                while i < size {
-                    self.add("pop %rcx");
-                    i += 1;
-                }
+                self.add(&format!("add ${}, %rsp", stack_clone.scope_size() * 8));
             }
         }
 
@@ -413,7 +408,11 @@ impl Clone for StackFrame {
     }
 
     fn clone(&self) -> Self {
-        StackFrame { vars: self.vars.clone(), scope: HashSet::new(), index: self.index }
+        StackFrame {
+            vars: self.vars.clone(),
+            scope: HashSet::new(),
+            index: self.index,
+        }
     }
 }
 
