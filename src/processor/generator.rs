@@ -4,14 +4,20 @@ use std::error::Error;
 
 pub struct Generator {
     unique_ids: u32,
+    convention: CallingConvention,
     assembly: Vec<String>,
+}
+
+pub enum CallingConvention {
+    CDECL,
 }
 
 // helper functions
 impl Generator {
-    fn new() -> Self {
+    fn new(convention: CallingConvention) -> Self {
         Generator {
             unique_ids: 0,
+            convention,
             assembly: vec![],
         }
     }
@@ -33,8 +39,11 @@ impl Generator {
 
 // generator functions
 impl Generator {
-    pub fn generate(ast: &Program) -> Result<String, Box<dyn Error>> {
-        let mut gen = Generator::new();
+    pub fn generate(
+        ast: &Program,
+        convention: CallingConvention,
+    ) -> Result<String, Box<dyn Error>> {
+        let mut gen = Generator::new(convention);
         gen.generate_program(ast)
     }
 
@@ -59,15 +68,9 @@ impl Generator {
         self.add("mov %rsp, %rbp");
         let mut context = Context::new();
 
-        let mut offset = 16;
-        function
-            .params
-            .iter()
-            .try_for_each(|param| -> Result<(), Box<dyn Error>> {
-                context.add_arg(param, offset)?;
-                offset += 8;
-                Ok(())
-            })?;
+        match self.convention {
+            CallingConvention::CDECL => self.generate_cdecl(&mut context, &function.params)?,
+        }
 
         clone
             .iter()
@@ -79,8 +82,24 @@ impl Generator {
             self.add("pop %rbp");
             self.add("ret");
         }
+        self.add("");
 
         Ok(())
+    }
+
+    fn generate_cdecl(
+        &mut self,
+        context: &mut Context,
+        params: &Vec<String>,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut offset = 16;
+        params
+            .iter()
+            .try_for_each(|param| -> Result<(), Box<dyn Error>> {
+                context.add_arg(param, offset)?;
+                offset += 8;
+                Ok(())
+            })
     }
 
     fn generate_statement(
@@ -256,9 +275,11 @@ impl Generator {
                 self.generate_ternary(context, cond, if_body, else_body)?
             }
             Expression::FunctionCall(name, args) => {
-                let num_args = self.generate_args(context, args)?;
+                let offset = match self.convention {
+                    CallingConvention::CDECL => self.generate_args_cdecl(context, args)?,
+                };
                 self.add(&format!("call {}", name));
-                self.add(&format!("add ${}, %rsp", num_args * 8));
+                self.add(&format!("add ${}, %rsp", offset * 8));
             }
             Expression::Null => {}
         }
@@ -485,18 +506,18 @@ impl Generator {
         Ok(())
     }
 
-    fn generate_args(
+    fn generate_args_cdecl(
         &mut self,
         context: &mut Context,
         arg: &Expression,
     ) -> Result<i32, Box<dyn Error>> {
         match arg {
+            Expression::Null => Ok(0),
             Expression::BinOp(BinOp::Comma, left, right) => {
-                let right = self.generate_args(context, right)?;
-                let left = self.generate_args(context, left)?;
+                let right = self.generate_args_cdecl(context, right)?;
+                let left = self.generate_args_cdecl(context, left)?;
                 Ok(left + right)
             }
-            Expression::Null => Ok(0),
             _ => {
                 self.generate_expression(context, arg)?;
                 self.add("push %rax");
