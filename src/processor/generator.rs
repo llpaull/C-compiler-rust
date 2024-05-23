@@ -46,6 +46,12 @@ impl Generator {
     }
 
     fn generate_function(&mut self, function: &Function) -> Result<(), Box<dyn Error>> {
+        let clone: Vec<Statement>;
+        match function.body {
+            None => return Ok(()),
+            Some(ref body) => clone = body.clone(),
+        }
+
         self.add(&format!(".globl {}", function.name));
         self.add(&format!("{}:", function.name));
 
@@ -53,12 +59,21 @@ impl Generator {
         self.add("mov %rsp, %rbp");
         let mut context = Context::new();
 
+        let mut offset = 16;
         function
-            .body
+            .params
+            .iter()
+            .try_for_each(|param| -> Result<(), Box<dyn Error>> {
+                context.add_arg(param, offset)?;
+                offset += 8;
+                Ok(())
+            })?;
+
+        clone
             .iter()
             .try_for_each(|statement| self.generate_statement(&mut context, statement))?;
 
-        if !self.check_returns(&function.body) {
+        if !self.check_returns(&clone) {
             self.add("mov $0, %rax");
             self.add("mov %rbp, %rsp");
             self.add("pop %rbp");
@@ -239,6 +254,11 @@ impl Generator {
             }
             Expression::Ternary(cond, if_body, else_body) => {
                 self.generate_ternary(context, cond, if_body, else_body)?
+            }
+            Expression::FunctionCall(name, args) => {
+                let num_args = self.generate_args(context, args)?;
+                self.add(&format!("call {}", name));
+                self.add(&format!("add ${}, %rsp", num_args * 8));
             }
             Expression::Null => {}
         }
@@ -465,6 +485,26 @@ impl Generator {
         Ok(())
     }
 
+    fn generate_args(
+        &mut self,
+        context: &mut Context,
+        arg: &Expression,
+    ) -> Result<i32, Box<dyn Error>> {
+        match arg {
+            Expression::BinOp(BinOp::Comma, left, right) => {
+                let right = self.generate_args(context, right)?;
+                let left = self.generate_args(context, left)?;
+                Ok(left + right)
+            }
+            Expression::Null => Ok(0),
+            _ => {
+                self.generate_expression(context, arg)?;
+                self.add("push %rax");
+                Ok(1)
+            }
+        }
+    }
+
     fn check_returns(&mut self, statements: &Vec<Statement>) -> bool {
         match statements.last() {
             Some(x) => self.check_statement_returns(x),
@@ -530,6 +570,10 @@ impl Context {
 
     fn get_offset(&mut self, name: &str) -> Result<i32, Box<dyn Error>> {
         self.stack.get_offset(name)
+    }
+
+    fn add_arg(&mut self, name: &str, offset: i32) -> Result<(), Box<dyn Error>> {
+        self.stack.add_arg(name, offset)
     }
 
     fn scope_size(&self) -> usize {
@@ -604,5 +648,15 @@ impl StackFrame {
 
     fn scope_size(&self) -> usize {
         self.scope.len()
+    }
+
+    fn add_arg(&mut self, name: &str, offset: i32) -> Result<(), Box<dyn Error>> {
+        let name = name.to_string();
+        if let Some(_) = self.scope.get(&name) {
+            return Err(format!("Cannot instantiate variable {} more than once", name).into());
+        }
+        self.vars.insert(name.clone(), offset);
+        self.scope.insert(name);
+        Ok(())
     }
 }

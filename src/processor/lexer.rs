@@ -69,8 +69,8 @@ impl<'a> Lexer<'a> {
                 '~' => lexer.push(Token::BitNot),
                 ',' => lexer.push(Token::Comma),
                 ' ' | '\t' | '\n' | '\r' => lexer.drop(),
-                'a'..='z' | 'A'..='Z' => {
-                    let word: &str = &lexer.get_string(|x| x.is_alphanumeric());
+                'a'..='z' | 'A'..='Z' | '_' => {
+                    let word: &str = &lexer.get_string(|x| x.is_alphanumeric() || *x == '_');
                     match word {
                         "int" => lexer.add(Token::Keyword(Keyword::Int)),
                         "return" => lexer.add(Token::Keyword(Keyword::Return)),

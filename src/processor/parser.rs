@@ -95,8 +95,18 @@ impl Parser {
         let mut body = vec![];
 
         if let Ok(_) = self.peek_match_token(Token::Semicolon) {
-            return Ok(Function { name, params, body });
+            self.drop();
+            return Ok(Function {
+                name,
+                params,
+                body: None,
+            });
         }
+
+        self.match_token(
+            Token::OpenBrace,
+            String::from("Expected OpenBrace after function definition"),
+        )?;
 
         while let Err(_) = self.peek_match_token(Token::CloseBrace) {
             body.push(self.parse_statement()?);
@@ -107,7 +117,7 @@ impl Parser {
             String::from("Expected CloseBrace at the end of function body"),
         )?;
 
-        Ok(Function { name, params, body })
+        Ok(Function { name, params, body: Some(body) })
     }
 
     fn parse_func_args(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
@@ -578,6 +588,15 @@ impl Parser {
                     String::from("Expected a CloseParenthesis to match the OpenParenthesis"),
                 )?;
                 exp
+            }
+            (Some(Token::Identifier(func)), Some(Token::OpenParenthesis)) => {
+                self.drop();
+                let args = self.parse_expression()?;
+                self.match_token(
+                    Token::CloseParenthesis,
+                    String::from("Expected CloseParenthesis at end of function call"),
+                )?;
+                Ok(Expression::FunctionCall(func, Box::new(args)))
             }
             (Some(Token::Identifier(name)), _) => Ok(Expression::Var(name)),
             (Some(op @ Token::Negation), _)

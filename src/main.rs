@@ -31,6 +31,8 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
         println!("{:#?}", ast)
     }
 
+    validator::Validator::validate(&ast)?;
+
     let assembly2 = generator::Generator::generate(&ast)?;
 
     fs::File::create("assembly.s")?.write_all(&assembly2.as_bytes())?;

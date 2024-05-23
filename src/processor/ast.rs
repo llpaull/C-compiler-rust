@@ -7,10 +7,10 @@ pub struct Program {
 pub struct Function {
     pub name: String,
     pub params: Vec<String>,
-    pub body: Vec<Statement>,
+    pub body: Option<Vec<Statement>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Declaration(String, Option<Expression>),
     Return(Expression),
@@ -25,7 +25,7 @@ pub enum Statement {
     Continue,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Num(u32),
     Var(String),
@@ -33,17 +33,18 @@ pub enum Expression {
     BinOp(BinOp, Box<Expression>, Box<Expression>),
     Assign(String, Box<Expression>),
     Ternary(Box<Expression>, Box<Expression>, Box<Expression>),
+    FunctionCall(String, Box<Expression>), // Single expression because it will turn into a BinOp(Comma, ...)
     Null,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnOp {
     Negation,
     BitNot,
     LogicNot,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinOp {
     Addition,
     Subtraction,
