@@ -28,23 +28,17 @@ impl Parser {
         self.iter.next();
     }
 
-    fn match_token(&mut self, token: Token) -> Result<(), String> {
+    fn match_token(&mut self, token: Token, error: String) -> Result<(), String> {
         match self.next() {
             Some(ref t) if t == &token => Ok(()),
-            err => Err(format!(
-                "Token {:?} not found, instead found {:?}",
-                token, err
-            )),
+            err => Err(error + &format!(", but got {:?}", err)),
         }
     }
 
-    fn match_keyword(&mut self, keyword: Keyword) -> Result<(), String> {
+    fn match_keyword(&mut self, keyword: Keyword, error: String) -> Result<(), String> {
         match self.next() {
             Some(Token::Keyword(ref kw)) if kw == &keyword => Ok(()),
-            err => Err(format!(
-                "Keyword {:?} not found, instead found {:?}",
-                keyword, err
-            )),
+            err => Err(error + &format!(", but got {:?}", err)),
         }
     }
 
@@ -83,21 +77,61 @@ impl Parser {
     }
 
     fn parse_function(&mut self) -> Result<Function, Box<dyn Error>> {
-        self.match_keyword(Keyword::Int)?;
+        self.match_keyword(
+            Keyword::Int,
+            String::from("Expected OpenParenthesis after int when declaring function"),
+        )?;
         let name = self.get_identifier()?;
-        self.match_token(Token::OpenParenthesis)?;
-        self.match_token(Token::CloseParenthesis)?;
-        self.match_token(Token::OpenBrace)?;
+        self.match_token(
+            Token::OpenParenthesis,
+            String::from("Expected OpenParenthesis after int when declaring function"),
+        )?;
+        let params = self.parse_func_args()?;
+        self.match_token(
+            Token::CloseParenthesis,
+            String::from("Expected CloseParenthesis after args list when declaring function"),
+        )?;
 
         let mut body = vec![];
+
+        if let Ok(_) = self.peek_match_token(Token::Semicolon) {
+            return Ok(Function { name, params, body });
+        }
 
         while let Err(_) = self.peek_match_token(Token::CloseBrace) {
             body.push(self.parse_statement()?);
         }
 
-        self.match_token(Token::CloseBrace)?;
+        self.match_token(
+            Token::CloseBrace,
+            String::from("Expected CloseBrace at the end of function body"),
+        )?;
 
-        Ok(Function { name, body })
+        Ok(Function { name, params, body })
+    }
+
+    fn parse_func_args(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
+        let mut params = vec![];
+        while let Some(token) = self.peek() {
+            match token {
+                Token::CloseParenthesis => break,
+                Token::Keyword(Keyword::Int) => {
+                    self.drop();
+                    params.push(self.get_identifier()?);
+                    if self.peek_match_token(Token::Comma).is_ok() {
+                        self.drop();
+                    }
+                }
+                err => {
+                    return Err(format!(
+                        "Expected argument list to end or continue but got {:?}",
+                        err
+                    )
+                    .into())
+                }
+            }
+        }
+        Ok(params)
     }
 
     fn parse_statement(&mut self) -> Result<Statement, Box<dyn Error>> {
@@ -109,13 +143,19 @@ impl Parser {
                     Expression::Null => return Err("Cannot return nothing, for now".into()),
                     _ => {}
                 }
-                self.match_token(Token::Semicolon)?;
+                self.match_token(
+                    Token::Semicolon,
+                    String::from("Expected semicolon after expression in return statement"),
+                )?;
                 Ok(Statement::Return(exp))
             }
             Some(Token::Keyword(Keyword::Int)) => {
                 self.drop();
                 let ret = self.parse_declaration();
-                self.match_token(Token::Semicolon)?;
+                self.match_token(
+                    Token::Semicolon,
+                    String::from("Expected semicolon after variable declaration"),
+                )?;
                 ret
             }
             Some(Token::Keyword(Keyword::If)) => {
@@ -125,12 +165,18 @@ impl Parser {
             Some(Token::OpenBrace) => {
                 self.drop();
                 let ret = self.parse_compound_statement();
-                self.match_token(Token::CloseBrace)?;
+                self.match_token(
+                    Token::CloseBrace,
+                    String::from("Expected CloseBrace at end of compound statement"),
+                )?;
                 ret
             }
             Some(Token::Keyword(Keyword::For)) => {
                 self.drop();
-                self.match_token(Token::OpenParenthesis)?;
+                self.match_token(
+                    Token::OpenParenthesis,
+                    String::from("Expected OpenParenthesis after for keyword"),
+                )?;
                 let declaration = self.peek_match_token(Token::Keyword(Keyword::Int)).is_ok();
 
                 if declaration {
@@ -139,16 +185,29 @@ impl Parser {
                     match decl {
                         Statement::Declaration(_, _) => {}
                         _ => {
-                            return Err(
-                                format!("Declaration not a declaration, instead {:?}", decl).into()
+                            return Err(format!(
+                                "Declaration in for-loop not a declaration, instead {:?}",
+                                decl
                             )
+                            .into())
                         }
                     }
-                        self.match_token(Token::Semicolon)?;
+                    self.match_token(
+                        Token::Semicolon,
+                        String::from(
+                            "Expected semicolon after variable declaration in for-loop declaration",
+                        ),
+                    )?;
                     let cond = self.parse_expression()?;
-                    self.match_token(Token::Semicolon)?;
+                    self.match_token(
+                        Token::Semicolon,
+                        String::from("Expected semicolon after optional for-loop condition"),
+                    )?;
                     let post = self.parse_expression()?;
-                    self.match_token(Token::CloseParenthesis)?;
+                    self.match_token(
+                        Token::CloseParenthesis,
+                        String::from("Expected CloseParenthesis at end of for-loop declaration"),
+                    )?;
                     let body = self.parse_statement()?;
                     Ok(Statement::ForDecl(
                         Box::new(decl),
@@ -158,46 +217,84 @@ impl Parser {
                     ))
                 } else {
                     let exp = self.parse_expression()?;
-                    self.match_token(Token::Semicolon)?;
+                    self.match_token(
+                        Token::Semicolon,
+                        String::from(
+                            "Expected semicolon after optional expression in for-loop declaration",
+                        ),
+                    )?;
                     let cond = self.parse_expression()?;
-                    self.match_token(Token::Semicolon)?;
+                    self.match_token(
+                        Token::Semicolon,
+                        String::from("Expected semicolon after optional for-loop condition"),
+                    )?;
                     let post = self.parse_expression()?;
-                    self.match_token(Token::CloseParenthesis)?;
+                    self.match_token(
+                        Token::CloseParenthesis,
+                        String::from("Expected CloseParenthesis at end of for-loop declaration"),
+                    )?;
                     let body = self.parse_statement()?;
                     Ok(Statement::For(exp, cond, post, Box::new(body)))
                 }
             }
             Some(Token::Keyword(Keyword::While)) => {
                 self.drop();
-                self.match_token(Token::OpenParenthesis)?;
-                let exp = self.parse_expression()?;
-                self.match_token(Token::CloseParenthesis)?;
+                self.match_token(
+                    Token::OpenParenthesis,
+                    String::from("Expected OpenParenthesis after while keyword"),
+                )?;
+                let cond = self.parse_expression()?;
+                self.match_token(
+                    Token::CloseParenthesis,
+                    String::from("Expected CloseParenthesis after while-loop condition"),
+                )?;
                 let body = self.parse_statement()?;
-                Ok(Statement::While(exp, Box::new(body)))
+                Ok(Statement::While(cond, Box::new(body)))
             }
             Some(Token::Keyword(Keyword::Do)) => {
                 self.drop();
                 let body = self.parse_statement()?;
-                self.match_token(Token::Keyword(Keyword::While))?;
-                self.match_token(Token::OpenParenthesis)?;
-                let exp = self.parse_expression()?;
-                self.match_token(Token::CloseParenthesis)?;
-                self.match_token(Token::Semicolon)?;
-                Ok(Statement::Do(Box::new(body), exp))
+                self.match_token(
+                    Token::Keyword(Keyword::While),
+                    String::from("Expected while keyword after body of do keyword"),
+                )?;
+                self.match_token(
+                    Token::OpenParenthesis,
+                    String::from("Expected OpenParenthesis after while keyword"),
+                )?;
+                let cond = self.parse_expression()?;
+                self.match_token(
+                    Token::CloseParenthesis,
+                    String::from("Expected CloseParenthesis after do-while loop condition"),
+                )?;
+                self.match_token(
+                    Token::Semicolon,
+                    String::from("Expected Semicolon at end of do-while loop declaration"),
+                )?;
+                Ok(Statement::Do(Box::new(body), cond))
             }
             Some(Token::Keyword(Keyword::Break)) => {
                 self.drop();
-                self.match_token(Token::Semicolon)?;
+                self.match_token(
+                    Token::Semicolon,
+                    String::from("Expected semicolon after break keyword"),
+                )?;
                 Ok(Statement::Break)
             }
             Some(Token::Keyword(Keyword::Continue)) => {
                 self.drop();
-                self.match_token(Token::Semicolon)?;
+                self.match_token(
+                    Token::Semicolon,
+                    String::from("Expected semicolon after continue keyword"),
+                )?;
                 Ok(Statement::Continue)
             }
             Some(_) => {
                 let exp = self.parse_expression()?;
-                self.match_token(Token::Semicolon)?;
+                self.match_token(
+                    Token::Semicolon,
+                    String::from("Expected semicolon after simple statement"),
+                )?;
                 Ok(Statement::Expression(exp))
             }
             None => Err("Ran out of tokens while parsing function body".into()),
@@ -219,9 +316,15 @@ impl Parser {
     }
 
     fn parse_if_statement(&mut self) -> Result<Statement, Box<dyn Error>> {
-        self.match_token(Token::OpenParenthesis)?;
+        self.match_token(
+            Token::OpenParenthesis,
+            String::from("Expected OpenParenthesis after if keyword"),
+        )?;
         let condition = self.parse_expression()?;
-        self.match_token(Token::CloseParenthesis)?;
+        self.match_token(
+            Token::CloseParenthesis,
+            String::from("Expected CloseParenthesis after if-condition"),
+        )?;
         let if_body = Box::new(self.parse_statement()?);
 
         match *if_body {
@@ -330,7 +433,10 @@ impl Parser {
             Some(Token::QuestionMark) => {
                 self.drop();
                 let if_body = self.parse_expression()?;
-                self.match_token(Token::Colon)?;
+                self.match_token(
+                    Token::Colon,
+                    String::from("Expected colon after true-body in ternary expression"),
+                )?;
                 let else_body = self.parse_conditional_expression()?;
                 Ok(Expression::Ternary(
                     Box::new(cond),
@@ -467,7 +573,10 @@ impl Parser {
             }
             (Some(Token::OpenParenthesis), _) => {
                 let exp = self.parse_expression();
-                self.match_token(Token::CloseParenthesis)?;
+                self.match_token(
+                    Token::CloseParenthesis,
+                    String::from("Expected a CloseParenthesis to match the OpenParenthesis"),
+                )?;
                 exp
             }
             (Some(Token::Identifier(name)), _) => Ok(Expression::Var(name)),
