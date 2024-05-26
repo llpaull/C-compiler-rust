@@ -8,8 +8,10 @@ pub struct Generator {
     assembly: Vec<String>,
 }
 
+#[allow(dead_code)]
 pub enum CallingConvention {
     CDECL,
+    SystemVABI,
 }
 
 // helper functions
@@ -69,7 +71,12 @@ impl Generator {
         let mut context = Context::new();
 
         match self.convention {
-            CallingConvention::CDECL => self.generate_cdecl(&mut context, &function.params)?,
+            CallingConvention::CDECL => {
+                self.generate_params_cdecl(&mut context, &function.params)?
+            }
+            CallingConvention::SystemVABI => {
+                self.generate_params_system_v_abi(&mut context, &function.params)?
+            }
         }
 
         clone
@@ -87,7 +94,7 @@ impl Generator {
         Ok(())
     }
 
-    fn generate_cdecl(
+    fn generate_params_cdecl(
         &mut self,
         context: &mut Context,
         params: &Vec<String>,
@@ -100,6 +107,51 @@ impl Generator {
                 offset += 8;
                 Ok(())
             })
+    }
+
+    fn generate_params_system_v_abi(
+        &mut self,
+        context: &mut Context,
+        params: &Vec<String>,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut offset = 16;
+        params
+            .iter()
+            .enumerate()
+            .try_for_each(|(i, name)| -> Result<(), Box<dyn Error>> {
+                match i {
+                    0 => {
+                        self.add("push %rdi");
+                        context.add_var(name)?;
+                    }
+                    1 => {
+                        self.add("push %rsi");
+                        context.add_var(name)?;
+                    }
+                    2 => {
+                        self.add("push %rdx");
+                        context.add_var(name)?;
+                    }
+                    3 => {
+                        self.add("push %rcx");
+                        context.add_var(name)?;
+                    }
+                    4 => {
+                        self.add("push %r8");
+                        context.add_var(name)?;
+                    }
+                    5 => {
+                        self.add("push %r9");
+                        context.add_var(name)?;
+                    }
+                    _ => {
+                        context.add_arg(name, offset)?;
+                        offset += 8;
+                    }
+                }
+                Ok(())
+            })?;
+        Ok(())
     }
 
     fn generate_statement(
@@ -277,6 +329,9 @@ impl Generator {
             Expression::FunctionCall(name, args) => {
                 let offset = match self.convention {
                     CallingConvention::CDECL => self.generate_args_cdecl(context, args)?,
+                    CallingConvention::SystemVABI => {
+                        self.generate_args_system_v_abi(context, args)?
+                    }
                 };
                 self.add(&format!("call {}", name));
                 self.add(&format!("add ${}, %rsp", offset * 8));
@@ -510,7 +565,7 @@ impl Generator {
         &mut self,
         context: &mut Context,
         arg: &Expression,
-    ) -> Result<i32, Box<dyn Error>> {
+    ) -> Result<u32, Box<dyn Error>> {
         match arg {
             Expression::Null => Ok(0),
             Expression::BinOp(BinOp::Comma, left, right) => {
@@ -523,6 +578,66 @@ impl Generator {
                 self.add("push %rax");
                 Ok(1)
             }
+        }
+    }
+
+    fn generate_args_system_v_abi(
+        &mut self,
+        context: &mut Context,
+        arg: &Expression,
+    ) -> Result<u32, Box<dyn Error>> {
+        let num_args = self.generate_args_cdecl(context, arg)?;
+        self.generate_regs_system_v_abi(arg, num_args, 1)
+    }
+
+    fn generate_regs_system_v_abi(
+        &mut self,
+        arg: &Expression,
+        total_args: u32,
+        arg_num: u32,
+    ) -> Result<u32, Box<dyn Error>> {
+        match arg {
+            Expression::Null => Ok(0),
+            Expression::BinOp(BinOp::Comma, left, right) => {
+                let left = match **left {
+                    Expression::BinOp(BinOp::Comma, _, _) => {
+                        self.generate_regs_system_v_abi(left, total_args, arg_num + 1)?
+                    }
+                    _ => {
+                        self.generate_regs_system_v_abi(left, total_args, total_args - arg_num)?
+                    }
+                };
+                let right =
+                    self.generate_regs_system_v_abi(right, total_args, total_args - arg_num + 1)?;
+                Ok(left + right)
+            }
+            _ => match arg_num {
+                1 => {
+                    self.add("pop %rdi");
+                    Ok(0)
+                }
+                2 => {
+                    self.add("pop %rsi");
+                    Ok(0)
+                }
+                3 => {
+                    self.add("pop %rdx");
+                    Ok(0)
+                }
+                4 => {
+                    self.add("pop %rcx");
+                    Ok(0)
+                }
+                5 => {
+                    self.add("pop %r8");
+                    Ok(0)
+                }
+                6 => {
+                    self.add("pop %r9");
+                    Ok(0)
+                }
+                _ => Ok(1),
+            },
         }
     }
 

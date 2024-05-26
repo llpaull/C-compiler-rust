@@ -33,7 +33,7 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     validator::Validator::validate(&ast)?;
 
-    let assembly2 = generator::Generator::generate(&ast, generator::CallingConvention::CDECL)?;
+    let assembly2 = generator::Generator::generate(&ast, generator::CallingConvention::SystemVABI)?;
 
     fs::File::create("assembly.s")?.write_all(&assembly2.as_bytes())?;
     process::Command::new("gcc")
